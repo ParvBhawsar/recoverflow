@@ -7,7 +7,9 @@ from sqlalchemy import text
 from app.api.recovery import router as recovery_router
 from app.api.webhooks import router as webhook_router
 from app.database import Base, engine
+from app.models.audit_log import AuditLog
 from app.models.payment import Payment
+from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
 
@@ -21,7 +23,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -51,7 +53,7 @@ def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "0.2.0",
+        "version": "0.3.0",
     }
 
 

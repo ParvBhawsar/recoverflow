@@ -26,6 +26,10 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.7-flash
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL

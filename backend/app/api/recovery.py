@@ -9,15 +9,36 @@ from app.models.audit_log import AuditLog
 from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
-from app.services.recovery_executor import create_recovery_link, policy_guard
+from app.services.recovery_executor import (
+    create_recovery_link,
+    policy_guard,
+    reconcile_recovery_case,
+)
 from app.services.recovery_policy import decide_recovery_action
 
 
 router = APIRouter()
 
 
+def _reconcile_waiting_cases(db: Session) -> None:
+    waiting_cases = (
+        db.query(RecoveryCase)
+        .filter(RecoveryCase.status == "WAITING_FOR_CUSTOMER")
+        .limit(50)
+        .all()
+    )
+    for case in waiting_cases:
+        try:
+            reconcile_recovery_case(db, case)
+        except Exception:
+            # Dashboard reads should remain available even if Razorpay status polling
+            # temporarily fails. The webhook path is still the primary production path.
+            db.rollback()
+
+
 @router.get("/cases")
 def list_recovery_cases(db: Session = Depends(get_db)):
+    _reconcile_waiting_cases(db)
     cases = (
         db.query(RecoveryCase)
         .order_by(RecoveryCase.created_at.desc())
@@ -47,6 +68,7 @@ def list_recovery_cases(db: Session = Depends(get_db)):
 
 @router.get("/summary")
 def recovery_summary(db: Session = Depends(get_db)):
+    _reconcile_waiting_cases(db)
     total_at_risk = db.query(func.coalesce(func.sum(RecoveryCase.amount), 0)).scalar()
     total_recovered = db.query(func.coalesce(func.sum(RecoveryCase.recovered_amount), 0)).scalar()
     active_cases = (
@@ -144,6 +166,14 @@ def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
     case = db.query(RecoveryCase).filter(RecoveryCase.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Recovery case not found")
+
+    if case.status == "WAITING_FOR_CUSTOMER":
+        try:
+            reconcile_recovery_case(db, case)
+            db.refresh(case)
+        except Exception:
+            db.rollback()
+            case = db.query(RecoveryCase).filter(RecoveryCase.id == case_id).first()
 
     actions = (
         db.query(RecoveryAction)

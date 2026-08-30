@@ -8,18 +8,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.payment import Payment
+from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
+from app.services.recovery_policy import decide_recovery_action
 
 
 router = APIRouter()
 
 
-def verify_webhook_signature(
-    body: bytes,
-    received_signature: str,
-) -> bool:
+def verify_webhook_signature(body: bytes, received_signature: str) -> bool:
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
-
     if not webhook_secret:
         raise RuntimeError("RAZORPAY_WEBHOOK_SECRET is not configured")
 
@@ -28,10 +26,15 @@ def verify_webhook_signature(
         body,
         hashlib.sha256,
     ).hexdigest()
+    return hmac.compare_digest(expected_signature, received_signature)
 
-    return hmac.compare_digest(
-        expected_signature,
-        received_signature,
+
+def extract_payment_entity(payload: dict) -> dict:
+    return (
+        payload
+        .get("payload", {})
+        .get("payment", {})
+        .get("entity", {})
     )
 
 
@@ -42,105 +45,105 @@ async def razorpay_webhook(
     x_razorpay_event_id: str = Header(...),
     db: Session = Depends(get_db),
 ):
-    # IMPORTANT:
-    # Signature verification must use the RAW request body.
     raw_body = await request.body()
 
-    if not verify_webhook_signature(
-        raw_body,
-        x_razorpay_signature,
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid Razorpay webhook signature",
-        )
+    if not verify_webhook_signature(raw_body, x_razorpay_signature):
+        raise HTTPException(status_code=400, detail="Invalid Razorpay webhook signature")
 
     try:
         payload = json.loads(raw_body)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid JSON payload",
-        )
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
 
-    # Razorpay can send the same event more than once.
     existing_event = (
         db.query(WebhookEvent)
-        .filter(
-            WebhookEvent.event_id == x_razorpay_event_id
-        )
+        .filter(WebhookEvent.event_id == x_razorpay_event_id)
         .first()
     )
-
     if existing_event:
-        return {
-            "status": "duplicate",
-            "event_id": x_razorpay_event_id,
-        }
+        return {"status": "duplicate", "event_id": x_razorpay_event_id}
 
     event_type = payload.get("event", "unknown")
-
     webhook_event = WebhookEvent(
         event_id=x_razorpay_event_id,
         event_type=event_type,
         payload=payload,
         processed=False,
     )
-
     db.add(webhook_event)
 
-    # First RecoverFlow business event:
-    # Store failed Razorpay payments.
-    if event_type == "payment.failed":
+    payment_entity = extract_payment_entity(payload)
+    razorpay_payment_id = payment_entity.get("id")
 
-        payment_entity = (
-            payload
-            .get("payload", {})
-            .get("payment", {})
-            .get("entity", {})
+    if event_type == "payment.failed" and razorpay_payment_id:
+        payment = (
+            db.query(Payment)
+            .filter(Payment.razorpay_payment_id == razorpay_payment_id)
+            .first()
         )
 
-        razorpay_payment_id = payment_entity.get("id")
-
-        if razorpay_payment_id:
-
-            payment = (
-                db.query(Payment)
-                .filter(
-                    Payment.razorpay_payment_id
-                    == razorpay_payment_id
-                )
-                .first()
+        if not payment:
+            payment = Payment(
+                razorpay_payment_id=razorpay_payment_id,
+                amount=payment_entity.get("amount", 0),
+                currency=payment_entity.get("currency", "INR"),
+                status=payment_entity.get("status", "failed"),
+                method=payment_entity.get("method"),
+                error_code=payment_entity.get("error_code"),
+                error_source=payment_entity.get("error_source"),
+                error_step=payment_entity.get("error_step"),
+                error_reason=payment_entity.get("error_reason"),
             )
+            db.add(payment)
+        else:
+            payment.status = payment_entity.get("status", "failed")
+            payment.error_code = payment_entity.get("error_code")
+            payment.error_source = payment_entity.get("error_source")
+            payment.error_step = payment_entity.get("error_step")
+            payment.error_reason = payment_entity.get("error_reason")
 
-            if not payment:
-                payment = Payment(
-                    razorpay_payment_id=razorpay_payment_id,
-                    amount=payment_entity.get("amount", 0),
-                    currency=payment_entity.get(
-                        "currency",
-                        "INR",
-                    ),
-                    status=payment_entity.get(
-                        "status",
-                        "failed",
-                    ),
-                    method=payment_entity.get("method"),
-                    error_code=payment_entity.get(
-                        "error_code"
-                    ),
-                    error_source=payment_entity.get(
-                        "error_source"
-                    ),
-                    error_step=payment_entity.get(
-                        "error_step"
-                    ),
-                    error_reason=payment_entity.get(
-                        "error_reason"
-                    ),
-                )
+        recovery_case = (
+            db.query(RecoveryCase)
+            .filter(RecoveryCase.razorpay_payment_id == razorpay_payment_id)
+            .first()
+        )
 
-                db.add(payment)
+        if not recovery_case:
+            decision = decide_recovery_action(payment_entity)
+            recovery_case = RecoveryCase(
+                razorpay_payment_id=razorpay_payment_id,
+                amount=payment_entity.get("amount", 0),
+                currency=payment_entity.get("currency", "INR"),
+                status="ACTION_PROPOSED",
+                diagnosis=decision.diagnosis,
+                confidence=decision.confidence,
+                recommended_action=decision.recommended_action,
+                reason=decision.reason,
+            )
+            db.add(recovery_case)
+
+        webhook_event.processed = True
+
+    elif event_type in {"payment.authorized", "payment.captured"} and razorpay_payment_id:
+        payment = (
+            db.query(Payment)
+            .filter(Payment.razorpay_payment_id == razorpay_payment_id)
+            .first()
+        )
+        if payment:
+            payment.status = payment_entity.get("status", event_type.split(".")[-1])
+
+        recovery_case = (
+            db.query(RecoveryCase)
+            .filter(RecoveryCase.razorpay_payment_id == razorpay_payment_id)
+            .first()
+        )
+        if recovery_case:
+            recovery_case.status = "ORIGINAL_PAYMENT_CAPTURED"
+            recovery_case.recommended_action = "STOP"
+            recovery_case.reason = (
+                "Original payment later succeeded; recovery stopped to prevent duplicate collection."
+            )
 
         webhook_event.processed = True
 

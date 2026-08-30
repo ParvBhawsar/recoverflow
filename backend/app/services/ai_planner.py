@@ -14,6 +14,7 @@ from app.services.recovery_policy import RecoveryDecision, decide_recovery_actio
 
 OPENAI_API_URL = "https://api.openai.com/v1/responses"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_FAST_MODEL = "gemini-3.5-flash-lite"
 ALLOWED_ACTIONS = {"CREATE_RECOVERY_LINK", "WAIT_AND_VERIFY", "ESCALATE"}
 ALLOWED_TONES = {"supportive", "neutral", "urgent"}
 
@@ -76,7 +77,6 @@ def _validate_plan(
     delay_minutes = max(0, min(1440, int(data.get("delay_minutes") or 0)))
     amount = int(payment.get("amount") or 0)
 
-    # Hard safety constraint: the model can propose, but cannot override value limits.
     if amount >= 2_500_000 and action == "CREATE_RECOVERY_LINK":
         action = "ESCALATE"
         confidence = max(confidence, 0.99)
@@ -154,18 +154,20 @@ def _prompt(payment: dict) -> str:
     return f"{system_prompt}\n\nPayment context:\n{json.dumps(input_payload)}"
 
 
-def _plan_with_gemini(payment: dict, api_key: str) -> PlannerDecision:
-    model = _clean_env("GEMINI_MODEL") or "gemini-3.7-flash"
+def _call_gemini_model(payment: dict, api_key: str, model: str) -> PlannerDecision:
     url = f"{GEMINI_API_BASE}/{quote(model, safe='')}:generateContent"
+    thinking_level = "LOW" if model == "gemini-3.7-flash" else "MINIMAL"
     request_body = {
         "contents": [{"parts": [{"text": _prompt(payment)}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
             "responseJsonSchema": _schema(),
+            "thinkingConfig": {"thinkingLevel": thinking_level},
         },
     }
 
-    with httpx.Client(timeout=25.0) as client:
+    timeout = httpx.Timeout(20.0, connect=5.0)
+    with httpx.Client(timeout=timeout) as client:
         response = client.post(
             url,
             headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
@@ -173,12 +175,12 @@ def _plan_with_gemini(payment: dict, api_key: str) -> PlannerDecision:
         )
 
     if not response.is_success:
-        raise RuntimeError(f"Gemini HTTP {response.status_code}: {response.text[:500]}")
+        raise RuntimeError(f"Gemini {model} HTTP {response.status_code}: {response.text[:500]}")
 
     raw = response.json()
     candidates = raw.get("candidates") or []
     if not candidates:
-        raise RuntimeError("Gemini returned no candidates")
+        raise RuntimeError(f"Gemini {model} returned no candidates")
 
     parts = candidates[0].get("content", {}).get("parts", [])
     output_text = next(
@@ -186,19 +188,33 @@ def _plan_with_gemini(payment: dict, api_key: str) -> PlannerDecision:
         None,
     )
     if not output_text:
-        raise RuntimeError("Gemini returned no structured output text")
+        raise RuntimeError(f"Gemini {model} returned no structured output text")
 
     data = json.loads(output_text)
     return _validate_plan(data, payment, model, "gemini", raw)
+
+
+def _plan_with_gemini(payment: dict, api_key: str) -> PlannerDecision:
+    preferred = _clean_env("GEMINI_MODEL")
+    models = [GEMINI_FAST_MODEL]
+    if preferred and preferred not in models:
+        models.append(preferred)
+
+    errors: list[str] = []
+    for model in models:
+        try:
+            return _call_gemini_model(payment, api_key, model)
+        except Exception as exc:
+            errors.append(str(exc))
+
+    raise RuntimeError(" | ".join(errors))
 
 
 def _plan_with_openai(payment: dict, api_key: str) -> PlannerDecision:
     model = _clean_env("OPENAI_MODEL") or "gpt-5.6-luna"
     request_body = {
         "model": model,
-        "input": [
-            {"role": "system", "content": _prompt(payment)},
-        ],
+        "input": [{"role": "system", "content": _prompt(payment)}],
         "text": {
             "format": {
                 "type": "json_schema",
@@ -245,14 +261,12 @@ def plan_recovery(payment: dict) -> PlannerDecision:
     openai_key = _clean_env("OPENAI_API_KEY")
     errors: list[str] = []
 
-    # Gemini is first because RecoverFlow can use its supported free API tier.
     if gemini_key:
         try:
             return _plan_with_gemini(payment, gemini_key)
         except Exception as exc:
             errors.append(str(exc))
 
-    # OpenAI remains optional as a second provider if the project has API credits.
     if openai_key:
         try:
             return _plan_with_openai(payment, openai_key)

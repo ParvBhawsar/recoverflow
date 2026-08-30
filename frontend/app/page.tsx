@@ -63,13 +63,17 @@ export default function Home() {
   const [cases, setCases] = useState<RecoveryCase[]>([]);
   const [selected, setSelected] = useState<RecoveryCase | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
   const [execution, setExecution] = useState<ExecutionResult | null>(null);
 
-  async function loadDashboard() {
+  async function loadDashboard(showFeedback = false) {
     try {
+      if (showFeedback) setRefreshing(true);
       setError(null);
       const [summaryResponse, casesResponse] = await Promise.all([
         fetch(`${API_BASE}/recovery/summary`, { cache: "no-store" }),
@@ -89,10 +93,35 @@ export default function Home() {
         if (!current) return nextCases[0];
         return nextCases.find((item) => item.id === current.id) ?? nextCases[0];
       });
+      if (showFeedback) {
+        setNotice("Dashboard refreshed");
+        window.setTimeout(() => setNotice(null), 1800);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reach the RecoverFlow API.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  async function simulateFailure() {
+    setSimulating(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`${API_BASE}/recovery/demo/failure`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "Unable to create demo failure.");
+      }
+      await loadDashboard();
+      setNotice("Demo failed payment created");
+      window.setTimeout(() => setNotice(null), 2200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create demo failure.");
+    } finally {
+      setSimulating(false);
     }
   }
 
@@ -129,7 +158,7 @@ export default function Home() {
 
   useEffect(() => {
     loadDashboard();
-    const timer = window.setInterval(loadDashboard, 10000);
+    const timer = window.setInterval(() => loadDashboard(), 10000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -143,8 +172,8 @@ export default function Home() {
     !["RECOVERED", "STOPPED", "ORIGINAL_PAYMENT_CAPTURED"].includes(selected.status);
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] text-[#15171c]">
-      <header className="border-b border-black/5 bg-white/95 backdrop-blur">
+    <main className="relative min-h-screen bg-[#f6f7fb] text-[#15171c]">
+      <header className="relative z-10 border-b border-black/5 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between px-6 py-4 lg:px-10">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2f54eb] text-lg font-black text-white">R</div>
@@ -155,27 +184,47 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden rounded-full border border-[#dfe4f0] bg-[#f8faff] px-3 py-1.5 text-xs font-medium text-[#4e596e] sm:inline-flex">Razorpay Test Mode</span>
-            <button onClick={loadDashboard} className="rounded-lg border border-[#dfe3eb] bg-white px-4 py-2 text-sm font-semibold shadow-sm transition hover:bg-[#f8f9fb]">Refresh</button>
+            <button
+              type="button"
+              onClick={() => loadDashboard(true)}
+              className="cursor-pointer rounded-lg border border-[#dfe3eb] bg-white px-4 py-2 text-sm font-semibold shadow-sm transition hover:bg-[#f8f9fb] active:scale-[0.98]"
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1500px] px-6 py-8 lg:px-10">
+      <div className="relative z-10 mx-auto max-w-[1500px] px-6 py-8 lg:px-10">
         <section className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#2f54eb]">Merchant intelligence</p>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Revenue recovery, without blind retries.</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#697080] sm:text-base">RecoverFlow turns failed payments into bounded recovery actions, while stopping automatically when the original payment succeeds.</p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-[#6d7480]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#1fb981]" />
-            Auto-refreshing every 10 seconds
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={simulateFailure}
+              disabled={simulating}
+              className="cursor-pointer rounded-xl bg-[#2f54eb] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2446cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {simulating ? "Creating demo case…" : "+ Simulate Failed Payment"}
+            </button>
+            <div className="flex items-center gap-2 text-sm text-[#6d7480]">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#1fb981]" />
+              Auto-refreshing every 10 seconds
+            </div>
           </div>
         </section>
 
+        {notice && (
+          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</div>
+        )}
+
         {error && (
           <div className="mb-6 rounded-xl border border-[#ffd7d2] bg-[#fff5f3] px-4 py-3 text-sm text-[#a63b31]">
-            <span className="font-semibold">Backend unavailable:</span> {error} Make sure FastAPI is running at {API_BASE}.
+            <span className="font-semibold">Backend issue:</span> {error} Make sure FastAPI is running at {API_BASE}.
           </div>
         )}
 
@@ -201,7 +250,15 @@ export default function Home() {
             ) : cases.length === 0 ? (
               <div className="p-10 text-center">
                 <div className="text-lg font-bold">No recovery cases yet</div>
-                <p className="mt-2 text-sm text-[#7a8190]">Send a payment.failed test webhook and it will appear here automatically.</p>
+                <p className="mt-2 text-sm text-[#7a8190]">Use “Simulate Failed Payment” above to create one instantly.</p>
+                <button
+                  type="button"
+                  onClick={simulateFailure}
+                  disabled={simulating}
+                  className="mt-5 cursor-pointer rounded-xl bg-[#2f54eb] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#2446cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {simulating ? "Creating…" : "Create Demo Case"}
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -244,7 +301,7 @@ export default function Home() {
             </div>
 
             {!selected ? (
-              <p className="mt-8 text-sm leading-6 text-white/55">Select a recovery case to inspect the agent decision.</p>
+              <p className="mt-8 text-sm leading-6 text-white/55">Create or select a recovery case to inspect the agent decision.</p>
             ) : (
               <div className="mt-7 space-y-5">
                 <Detail label="Payment" value={selected.razorpay_payment_id} mono />
@@ -261,9 +318,10 @@ export default function Home() {
 
                 {canExecute && (
                   <button
+                    type="button"
                     onClick={executeRecovery}
                     disabled={executing}
-                    className="w-full rounded-xl bg-[#5c78ff] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#6b84ff] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full cursor-pointer rounded-xl bg-[#5c78ff] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#6b84ff] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {executing ? "Creating Razorpay recovery link…" : "Execute Recovery"}
                   </button>
@@ -276,14 +334,7 @@ export default function Home() {
                 {execution?.payment_link_url && (
                   <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4">
                     <p className="text-xs font-bold uppercase tracking-wider text-emerald-200/70">Recovery link created</p>
-                    <a
-                      href={execution.payment_link_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 block break-all text-sm font-semibold text-emerald-100 underline underline-offset-4"
-                    >
-                      {execution.payment_link_url}
-                    </a>
+                    <a href={execution.payment_link_url} target="_blank" rel="noreferrer" className="mt-2 block break-all text-sm font-semibold text-emerald-100 underline underline-offset-4">{execution.payment_link_url}</a>
                   </div>
                 )}
 

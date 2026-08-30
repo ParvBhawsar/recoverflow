@@ -25,17 +25,12 @@ CUSTOMER_FIXABLE_REASONS = {
 
 
 def decide_recovery_action(payment: dict) -> RecoveryDecision:
-    """Deterministic baseline used before the LLM planner is introduced.
-
-    Keeping this policy explicit gives RecoverFlow a safe fallback and a
-    measurable baseline for later AI evaluation.
-    """
+    """Deterministic safety baseline for bounded recovery decisions."""
 
     reason = (payment.get("error_reason") or "unknown").lower()
     source = (payment.get("error_source") or "unknown").lower()
     amount = int(payment.get("amount") or 0)
 
-    # High-value payments should not be autonomously retried.
     if amount >= 2_500_000:  # INR 25,000 in paise
         return RecoveryDecision(
             diagnosis="high_value_failure",
@@ -48,8 +43,11 @@ def decide_recovery_action(payment: dict) -> RecoveryDecision:
         return RecoveryDecision(
             diagnosis="customer_fixable_failure",
             confidence=0.90,
-            recommended_action="RETRY_PROMPT",
-            reason="The failure appears fixable by the customer with another payment attempt.",
+            recommended_action="CREATE_RECOVERY_LINK",
+            reason=(
+                "The failure is customer-fixable and falls within bounded autonomous "
+                "recovery limits, so a new Razorpay Payment Link can be offered safely."
+            ),
         )
 
     if reason in TRANSIENT_REASONS or source in {"bank", "gateway"}:

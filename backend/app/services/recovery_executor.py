@@ -79,6 +79,93 @@ def _razorpay_error(response: httpx.Response) -> str:
     return response.text.strip() or f"HTTP {response.status_code}"
 
 
+def _extract_payment_id(data: dict) -> str | None:
+    payments = data.get("payments")
+    if not isinstance(payments, list) or not payments:
+        return None
+
+    payment = payments[0]
+    if not isinstance(payment, dict):
+        return None
+
+    return payment.get("payment_id") or payment.get("id")
+
+
+def reconcile_recovery_case(db: Session, case: RecoveryCase) -> bool:
+    """Confirm a locally-created recovery link against Razorpay.
+
+    Production remains webhook-first. This API reconciliation path keeps local demos
+    accurate because Razorpay cannot deliver webhooks to 127.0.0.1/localhost.
+    Returns True only when the case transitions to RECOVERED.
+    """
+
+    if case.status != "WAITING_FOR_CUSTOMER":
+        return False
+
+    action = (
+        db.query(RecoveryAction)
+        .filter(
+            RecoveryAction.recovery_case_id == case.id,
+            RecoveryAction.action_type == "CREATE_RECOVERY_LINK",
+            RecoveryAction.status == "CREATED",
+            RecoveryAction.external_id.isnot(None),
+        )
+        .order_by(RecoveryAction.created_at.desc())
+        .first()
+    )
+    if not action or not action.external_id:
+        return False
+
+    key_id, key_secret = _credentials()
+    with httpx.Client(timeout=12.0) as client:
+        response = client.get(
+            f"{RAZORPAY_API_BASE}/payment_links/{action.external_id}",
+            auth=httpx.BasicAuth(key_id, key_secret),
+        )
+
+    if not response.is_success:
+        description = _razorpay_error(response)
+        raise RuntimeError(
+            f"Razorpay Payment Link status check returned HTTP {response.status_code}: {description}"
+        )
+
+    data = response.json()
+    razorpay_status = data.get("status")
+    if razorpay_status != "paid":
+        return False
+
+    amount_paid = int(data.get("amount_paid") or case.amount)
+    payment_id = _extract_payment_id(data)
+
+    action.status = "PAID"
+    action.recovery_payment_id = payment_id
+    action.details = {
+        **(action.details or {}),
+        "razorpay_status": razorpay_status,
+        "amount_paid": amount_paid,
+        "confirmed_via": "razorpay_api_reconciliation",
+    }
+
+    case.status = "RECOVERED"
+    case.recovered_amount = min(amount_paid, case.amount)
+
+    db.add(
+        AuditLog(
+            recovery_case_id=case.id,
+            event_type="RECOVERY_CONFIRMED",
+            message="Recovery payment confirmed through Razorpay Payment Link reconciliation.",
+            details={
+                "payment_link_id": action.external_id,
+                "recovery_payment_id": payment_id,
+                "amount_paid": amount_paid,
+                "source": "razorpay_api_reconciliation",
+            },
+        )
+    )
+    db.commit()
+    return True
+
+
 def create_recovery_link(db: Session, case: RecoveryCase) -> RecoveryAction:
     guard = policy_guard(case)
     if not guard.allowed:

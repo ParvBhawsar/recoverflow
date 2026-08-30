@@ -12,7 +12,7 @@ from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
-from app.services.recovery_policy import decide_recovery_action
+from app.services.ai_planner import apply_ai_plan
 
 
 router = APIRouter()
@@ -110,19 +110,20 @@ async def razorpay_webhook(
         )
 
         if not recovery_case:
-            decision = decide_recovery_action(payment_entity)
             recovery_case = RecoveryCase(
                 razorpay_payment_id=razorpay_payment_id,
                 amount=payment_entity.get("amount", 0),
                 currency=payment_entity.get("currency", "INR"),
                 status="ACTION_PROPOSED",
-                diagnosis=decision.diagnosis,
-                confidence=decision.confidence,
-                recommended_action=decision.recommended_action,
-                reason=decision.reason,
+                diagnosis="planning",
+                confidence=0.0,
+                recommended_action="ESCALATE",
+                reason="Recovery plan is being generated.",
             )
             db.add(recovery_case)
             db.flush()
+
+            plan = apply_ai_plan(db, recovery_case, payment_entity)
             db.add(
                 AuditLog(
                     recovery_case_id=recovery_case.id,
@@ -130,8 +131,10 @@ async def razorpay_webhook(
                     message="Failed payment created a RecoverFlow recovery case.",
                     details={
                         "payment_id": razorpay_payment_id,
-                        "recommended_action": decision.recommended_action,
-                        "confidence": decision.confidence,
+                        "recommended_action": plan.recommended_action,
+                        "confidence": plan.confidence,
+                        "planner_source": plan.planner_source,
+                        "planner_model": plan.planner_model,
                     },
                 )
             )

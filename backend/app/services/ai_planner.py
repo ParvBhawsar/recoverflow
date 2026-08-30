@@ -161,8 +161,7 @@ def _plan_with_gemini(payment: dict, api_key: str) -> PlannerDecision:
         "contents": [{"parts": [{"text": _prompt(payment)}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "responseSchema": _schema(),
-            "temperature": 0.2,
+            "responseJsonSchema": _schema(),
         },
     }
 

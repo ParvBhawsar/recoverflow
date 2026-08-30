@@ -95,9 +95,9 @@ def recovery_summary(db: Session = Depends(get_db)):
     )
     total_cases = db.query(func.count(RecoveryCase.id)).scalar()
     ai_plans = db.query(func.count(AIPlan.id)).scalar()
-    openai_plans = (
+    model_plans = (
         db.query(func.count(AIPlan.id))
-        .filter(AIPlan.planner_source == "openai")
+        .filter(AIPlan.planner_source.in_(["openai", "gemini"]))
         .scalar()
     )
 
@@ -112,7 +112,7 @@ def recovery_summary(db: Session = Depends(get_db)):
         "total_cases": total_cases,
         "recovery_rate": recovery_rate,
         "ai_plans": ai_plans,
-        "openai_plans": openai_plans,
+        "model_plans": model_plans,
     }
 
 

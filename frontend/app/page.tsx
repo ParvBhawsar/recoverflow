@@ -8,6 +8,8 @@ type RecoverySummary = {
   active_cases: number;
   total_cases: number;
   recovery_rate: number;
+  ai_plans?: number;
+  openai_plans?: number;
 };
 
 type RecoveryCase = {
@@ -22,6 +24,10 @@ type RecoveryCase = {
   reason: string | null;
   attempt_count: number;
   recovered_amount: number;
+  planner_source?: string | null;
+  planner_model?: string | null;
+  delay_minutes?: number | null;
+  customer_tone?: string | null;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -72,12 +78,13 @@ export default function Home() {
   async function simulateFailure() {
     setBusy(true);
     setRecoveryUrl(null);
-    setMessage("Creating demo failed payment…");
+    setMessage("Generating AI recovery plan…");
     try {
       const res = await fetch(`${API_BASE}/recovery/demo/failure`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Simulation failed");
-      setMessage(`Demo case #${data.case_id} created`);
+      const source = data.planner_source === "openai" ? `OpenAI · ${data.planner_model}` : "Safety fallback";
+      setMessage(`Demo case #${data.case_id} planned by ${source}`);
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Simulation failed");
@@ -110,6 +117,12 @@ export default function Home() {
     refresh();
   }, []);
 
+  const aiBadge = selected?.planner_source === "openai"
+    ? `AI · ${selected.planner_model || "OpenAI"}`
+    : selected?.planner_source
+      ? "Safety Fallback"
+      : "Legacy Case";
+
   return (
     <main className="relative z-10 min-h-screen bg-[#f5f7fb] text-[#16181d] pointer-events-auto">
       <header className="border-b bg-white">
@@ -125,7 +138,7 @@ export default function Home() {
             <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               {mounted ? "JS ACTIVE" : "JS STARTING"}
             </span>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Interactive build v0.4</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">AI Planner v0.5</span>
           </div>
         </div>
       </header>
@@ -158,7 +171,7 @@ export default function Home() {
               disabled={busy}
               className="relative z-20 cursor-pointer rounded-xl bg-[#3157e8] px-5 py-3 font-bold text-white shadow-sm hover:bg-[#2448cc] disabled:opacity-50"
             >
-              {busy ? "Working…" : "+ Simulate Failed Payment"}
+              {busy ? "Planning…" : "+ Simulate Failed Payment"}
             </button>
           </div>
         </div>
@@ -167,14 +180,14 @@ export default function Home() {
           <Card label="Revenue at Risk" value={money(summary?.revenue_at_risk || 0)} />
           <Card label="Recovered Revenue" value={money(summary?.recovered_revenue || 0)} />
           <Card label="Recovery Rate" value={`${summary?.recovery_rate || 0}%`} />
-          <Card label="Total Cases" value={String(summary?.total_cases || 0)} />
+          <Card label="AI-Planned Cases" value={`${summary?.openai_plans || 0}/${summary?.ai_plans || 0}`} />
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
             <div className="border-b px-6 py-4">
               <h3 className="font-bold">Recovery Queue</h3>
-              <p className="text-sm text-slate-500">Click any row to inspect it.</p>
+              <p className="text-sm text-slate-500">Click any row to inspect the agent decision.</p>
             </div>
             {cases.length === 0 ? (
               <div className="p-10 text-center">
@@ -193,6 +206,11 @@ export default function Home() {
                     <div>
                       <p className="font-mono text-xs font-bold text-slate-700">{item.razorpay_payment_id}</p>
                       <p className="mt-1 text-xs text-slate-500">{pretty(item.diagnosis)}</p>
+                      {item.planner_source && (
+                        <p className="mt-1 text-[11px] font-semibold text-blue-600">
+                          {item.planner_source === "openai" ? `AI · ${item.planner_model}` : "Deterministic safety fallback"}
+                        </p>
+                      )}
                     </div>
                     <p className="font-bold">{money(item.amount)}</p>
                     <p className="text-sm font-semibold">{pretty(item.status)}</p>
@@ -203,8 +221,17 @@ export default function Home() {
           </div>
 
           <aside className="rounded-2xl bg-[#151a24] p-6 text-white shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">Agent Inspector</p>
-            <h3 className="mt-2 text-2xl font-bold">Decision trace</h3>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">Agent Inspector</p>
+                <h3 className="mt-2 text-2xl font-bold">Decision trace</h3>
+              </div>
+              {selected && (
+                <span className={`rounded-full px-3 py-2 text-[11px] font-bold ${selected.planner_source === "openai" ? "bg-violet-400/15 text-violet-200" : "bg-amber-400/15 text-amber-200"}`}>
+                  {aiBadge}
+                </span>
+              )}
+            </div>
             {!selected ? (
               <p className="mt-8 text-sm text-white/60">Create or select a recovery case.</p>
             ) : (
@@ -214,9 +241,14 @@ export default function Home() {
                 <Info label="Diagnosis" value={pretty(selected.diagnosis)} />
                 <Info label="Action" value={pretty(selected.recommended_action)} />
                 <Info label="Confidence" value={selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Info label="Delay" value={selected.delay_minutes == null ? "—" : `${selected.delay_minutes} min`} />
+                  <Info label="Customer Tone" value={pretty(selected.customer_tone)} />
+                </div>
                 <p className="rounded-xl bg-white/5 p-4 text-sm leading-6 text-white/70">{selected.reason || "No reasoning recorded."}</p>
+                <p className="text-xs leading-5 text-white/45">AI proposes the next step. Deterministic policy still decides whether execution is allowed.</p>
 
-                {selected.recommended_action === "CREATE_RECOVERY_LINK" && (
+                {selected.recommended_action === "CREATE_RECOVERY_LINK" && selected.status !== "RECOVERED" && (
                   <button
                     type="button"
                     onClick={executeRecovery}
@@ -225,6 +257,10 @@ export default function Home() {
                   >
                     Execute Recovery
                   </button>
+                )}
+
+                {selected.status === "RECOVERED" && (
+                  <div className="rounded-xl bg-emerald-500/15 p-4 text-sm font-bold text-emerald-200">Revenue recovered successfully.</div>
                 )}
 
                 {recoveryUrl && (

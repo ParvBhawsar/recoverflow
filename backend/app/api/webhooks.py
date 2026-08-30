@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.audit_log import AuditLog
 from app.models.payment import Payment
+from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
 from app.services.recovery_policy import decide_recovery_action
@@ -30,12 +32,11 @@ def verify_webhook_signature(body: bytes, received_signature: str) -> bool:
 
 
 def extract_payment_entity(payload: dict) -> dict:
-    return (
-        payload
-        .get("payload", {})
-        .get("payment", {})
-        .get("entity", {})
-    )
+    return payload.get("payload", {}).get("payment", {}).get("entity", {})
+
+
+def extract_payment_link_entity(payload: dict) -> dict:
+    return payload.get("payload", {}).get("payment_link", {}).get("entity", {})
 
 
 @router.post("/razorpay")
@@ -121,6 +122,19 @@ async def razorpay_webhook(
                 reason=decision.reason,
             )
             db.add(recovery_case)
+            db.flush()
+            db.add(
+                AuditLog(
+                    recovery_case_id=recovery_case.id,
+                    event_type="CASE_CREATED",
+                    message="Failed payment created a RecoverFlow recovery case.",
+                    details={
+                        "payment_id": razorpay_payment_id,
+                        "recommended_action": decision.recommended_action,
+                        "confidence": decision.confidence,
+                    },
+                )
+            )
 
         webhook_event.processed = True
 
@@ -145,7 +159,70 @@ async def razorpay_webhook(
                 "Original payment later succeeded; recovery stopped to prevent duplicate collection."
             )
 
+            active_actions = (
+                db.query(RecoveryAction)
+                .filter(
+                    RecoveryAction.recovery_case_id == recovery_case.id,
+                    RecoveryAction.status.in_(["EXECUTING", "CREATED"]),
+                )
+                .all()
+            )
+            for action in active_actions:
+                action.status = "STOPPED"
+
+            db.add(
+                AuditLog(
+                    recovery_case_id=recovery_case.id,
+                    event_type="RECOVERY_STOPPED",
+                    message="Original payment succeeded; recovery stopped to prevent duplicate collection.",
+                    details={"event_type": event_type},
+                )
+            )
+
         webhook_event.processed = True
+
+    elif event_type == "payment_link.paid":
+        payment_link_entity = extract_payment_link_entity(payload)
+        payment_link_id = payment_link_entity.get("id")
+
+        if payment_link_id:
+            action = (
+                db.query(RecoveryAction)
+                .filter(RecoveryAction.external_id == payment_link_id)
+                .first()
+            )
+
+            if action:
+                recovery_case = (
+                    db.query(RecoveryCase)
+                    .filter(RecoveryCase.id == action.recovery_case_id)
+                    .first()
+                )
+
+                if recovery_case and recovery_case.status not in {
+                    "ORIGINAL_PAYMENT_CAPTURED",
+                    "STOPPED",
+                }:
+                    action.status = "PAID"
+                    action.recovery_payment_id = razorpay_payment_id
+                    recovery_case.status = "RECOVERED"
+                    recovery_case.recovered_amount = recovery_case.amount
+                    recovery_case.reason = "Revenue successfully recovered through Razorpay Payment Link."
+
+                    db.add(
+                        AuditLog(
+                            recovery_case_id=recovery_case.id,
+                            event_type="REVENUE_RECOVERED",
+                            message="Recovery Payment Link was paid successfully.",
+                            details={
+                                "payment_link_id": payment_link_id,
+                                "recovery_payment_id": razorpay_payment_id,
+                                "recovered_amount": recovery_case.amount,
+                            },
+                        )
+                    )
+
+                webhook_event.processed = True
 
     db.commit()
 

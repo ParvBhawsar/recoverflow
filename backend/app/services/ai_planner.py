@@ -91,7 +91,7 @@ def _validate_plan(data: dict, payment: dict, model: str, raw: dict) -> PlannerD
 
 def plan_recovery(payment: dict) -> PlannerDecision:
     api_key = _clean_env("OPENAI_API_KEY")
-    model = _clean_env("OPENAI_MODEL") or "gpt-5-mini"
+    model = _clean_env("OPENAI_MODEL") or "gpt-5.6-luna"
 
     if not api_key:
         return _fallback(payment, "OPENAI_API_KEY is not configured")

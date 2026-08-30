@@ -9,10 +9,10 @@ function Stop-PortProcess($port) {
     $lines = netstat -ano | Select-String ":$port" | Select-String 'LISTENING'
     foreach ($line in $lines) {
         $parts = ($line.ToString() -replace '\s+', ' ').Trim().Split(' ')
-        $pid = $parts[-1]
-        if ($pid -and $pid -ne '0') {
-            Write-Host "Stopping process $pid on port $port..."
-            taskkill /PID $pid /F | Out-Null
+        $processId = $parts[-1]
+        if ($processId -and $processId -ne '0') {
+            Write-Host "Stopping process $processId on port $port..."
+            taskkill /PID $processId /F | Out-Null
         }
     }
 }

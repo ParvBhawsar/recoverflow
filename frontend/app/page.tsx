@@ -26,6 +26,12 @@ type RecoveryCase = {
   updated_at: string;
 };
 
+type ExecutionResult = {
+  status: string;
+  payment_link_url?: string | null;
+  payment_link_id?: string | null;
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 function money(value: number, currency = "INR") {
@@ -58,6 +64,9 @@ export default function Home() {
   const [selected, setSelected] = useState<RecoveryCase | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [executionError, setExecutionError] = useState<string | null>(null);
+  const [executing, setExecuting] = useState(false);
+  const [execution, setExecution] = useState<ExecutionResult | null>(null);
 
   async function loadDashboard() {
     try {
@@ -87,6 +96,37 @@ export default function Home() {
     }
   }
 
+  async function executeRecovery() {
+    if (!selected) return;
+    setExecuting(true);
+    setExecutionError(null);
+    setExecution(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/recovery/cases/${selected.id}/execute`, {
+        method: "POST",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.detail || "Recovery execution failed.");
+      }
+
+      setExecution(payload);
+      await loadDashboard();
+    } catch (err) {
+      setExecutionError(err instanceof Error ? err.message : "Unable to execute recovery.");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  function chooseCase(item: RecoveryCase) {
+    setSelected(item);
+    setExecution(null);
+    setExecutionError(null);
+  }
+
   useEffect(() => {
     loadDashboard();
     const timer = window.setInterval(loadDashboard, 10000);
@@ -97,6 +137,10 @@ export default function Home() {
     () => cases.filter((item) => item.status === "RECOVERED").length,
     [cases],
   );
+
+  const canExecute =
+    selected?.recommended_action === "CREATE_RECOVERY_LINK" &&
+    !["RECOVERED", "STOPPED", "ORIGINAL_PAYMENT_CAPTURED"].includes(selected.status);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] text-[#15171c]">
@@ -173,7 +217,7 @@ export default function Home() {
                   </thead>
                   <tbody>
                     {cases.map((item) => (
-                      <tr key={item.id} onClick={() => setSelected(item)} className={`cursor-pointer border-t border-black/[0.05] transition hover:bg-[#f8faff] ${selected?.id === item.id ? "bg-[#f5f7ff]" : ""}`}>
+                      <tr key={item.id} onClick={() => chooseCase(item)} className={`cursor-pointer border-t border-black/[0.05] transition hover:bg-[#f8faff] ${selected?.id === item.id ? "bg-[#f5f7ff]" : ""}`}>
                         <td className="px-6 py-4">
                           <div className="max-w-[190px] truncate font-mono text-xs font-semibold text-[#3d4552]">{item.razorpay_payment_id}</div>
                           <div className="mt-1 text-xs text-[#9aa0aa]">Attempt {item.attempt_count + 1}</div>
@@ -214,6 +258,35 @@ export default function Home() {
                   <p className="text-[11px] font-bold uppercase tracking-wider text-white/40">Reasoning</p>
                   <p className="mt-2 rounded-xl border border-white/10 bg-white/[0.05] p-4 text-sm leading-6 text-white/75">{selected.reason || "No reasoning recorded yet."}</p>
                 </div>
+
+                {canExecute && (
+                  <button
+                    onClick={executeRecovery}
+                    disabled={executing}
+                    className="w-full rounded-xl bg-[#5c78ff] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#6b84ff] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {executing ? "Creating Razorpay recovery link…" : "Execute Recovery"}
+                  </button>
+                )}
+
+                {executionError && (
+                  <div className="rounded-xl border border-red-300/20 bg-red-400/10 p-3 text-xs leading-5 text-red-100">{executionError}</div>
+                )}
+
+                {execution?.payment_link_url && (
+                  <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-200/70">Recovery link created</p>
+                    <a
+                      href={execution.payment_link_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 block break-all text-sm font-semibold text-emerald-100 underline underline-offset-4"
+                    >
+                      {execution.payment_link_url}
+                    </a>
+                  </div>
+                )}
+
                 <div className="border-t border-white/10 pt-5">
                   <div className="flex items-center justify-between text-xs text-white/45"><span>Current state</span><StatusBadge status={selected.status} dark /></div>
                   <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[#6f8cff]" style={{ width: `${Math.max(8, Math.min(100, (selected.confidence ?? 0.5) * 100))}%` }} /></div>

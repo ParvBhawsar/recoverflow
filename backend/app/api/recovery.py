@@ -1,12 +1,16 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.audit_log import AuditLog
+from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.services.recovery_executor import create_recovery_link, policy_guard
+from app.services.recovery_policy import decide_recovery_action
 
 
 router = APIRouter()
@@ -69,6 +73,72 @@ def recovery_summary(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/demo/failure")
+def create_demo_failure(db: Session = Depends(get_db)):
+    """Create one customer-fixable failed payment for local/demo use.
+
+    This deliberately bypasses Razorpay webhook verification and is exposed as a
+    clearly-labelled demo endpoint. Real production ingestion remains webhook-only.
+    """
+
+    suffix = uuid.uuid4().hex[:10]
+    payment_id = f"pay_demo_{suffix}"
+    payment_data = {
+        "id": payment_id,
+        "amount": 499900,
+        "currency": "INR",
+        "status": "failed",
+        "method": "card",
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_source": "customer",
+        "error_step": "payment_authentication",
+        "error_reason": "incorrect_otp",
+    }
+
+    payment = Payment(
+        razorpay_payment_id=payment_id,
+        amount=payment_data["amount"],
+        currency=payment_data["currency"],
+        status=payment_data["status"],
+        method=payment_data["method"],
+        error_code=payment_data["error_code"],
+        error_source=payment_data["error_source"],
+        error_step=payment_data["error_step"],
+        error_reason=payment_data["error_reason"],
+    )
+    db.add(payment)
+
+    decision = decide_recovery_action(payment_data)
+    recovery_case = RecoveryCase(
+        razorpay_payment_id=payment_id,
+        amount=payment_data["amount"],
+        currency=payment_data["currency"],
+        status="ACTION_PROPOSED",
+        diagnosis=decision.diagnosis,
+        confidence=decision.confidence,
+        recommended_action=decision.recommended_action,
+        reason=decision.reason,
+    )
+    db.add(recovery_case)
+    db.flush()
+
+    db.add(
+        AuditLog(
+            recovery_case_id=recovery_case.id,
+            event_type="DEMO_PAYMENT_FAILED",
+            message="Demo failed payment created from dashboard.",
+            details={"razorpay_payment_id": payment_id},
+        )
+    )
+    db.commit()
+
+    return {
+        "status": "created",
+        "case_id": recovery_case.id,
+        "razorpay_payment_id": payment_id,
+    }
+
+
 @router.get("/cases/{case_id}")
 def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
     case = db.query(RecoveryCase).filter(RecoveryCase.id == case_id).first()
@@ -88,6 +158,8 @@ def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
+    guard = policy_guard(case)
+
     return {
         "case": {
             "id": case.id,
@@ -103,8 +175,8 @@ def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
             "recovered_amount": case.recovered_amount,
         },
         "policy_guard": {
-            "allowed": policy_guard(case).allowed,
-            "reason": policy_guard(case).reason,
+            "allowed": guard.allowed,
+            "reason": guard.reason,
         },
         "actions": [
             {

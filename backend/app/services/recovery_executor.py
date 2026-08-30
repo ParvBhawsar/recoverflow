@@ -43,12 +43,40 @@ def policy_guard(case: RecoveryCase) -> GuardResult:
     return GuardResult(True, "Bounded recovery policy approved execution.")
 
 
+def _clean_env(name: str) -> str:
+    value = (os.getenv(name) or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        value = value[1:-1].strip()
+    return value
+
+
 def _credentials() -> tuple[str, str]:
-    key_id = os.getenv("RAZORPAY_KEY_ID")
-    key_secret = os.getenv("RAZORPAY_KEY_SECRET")
+    key_id = _clean_env("RAZORPAY_KEY_ID")
+    key_secret = _clean_env("RAZORPAY_KEY_SECRET")
+
     if not key_id or not key_secret:
         raise RuntimeError("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are not configured")
+
+    if not key_id.startswith("rzp_test_") and not key_id.startswith("rzp_live_"):
+        raise RuntimeError(
+            "RAZORPAY_KEY_ID does not look like a Razorpay API key. "
+            "For Test Mode it should begin with 'rzp_test_'."
+        )
+
     return key_id, key_secret
+
+
+def _razorpay_error(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        description = error.get("description")
+        if description:
+            return str(description)
+    except ValueError:
+        pass
+
+    return response.text.strip() or f"HTTP {response.status_code}"
 
 
 def create_recovery_link(db: Session, case: RecoveryCase) -> RecoveryAction:
@@ -115,11 +143,22 @@ def create_recovery_link(db: Session, case: RecoveryCase) -> RecoveryAction:
         with httpx.Client(timeout=12.0) as client:
             response = client.post(
                 f"{RAZORPAY_API_BASE}/payment_links",
-                auth=(key_id, key_secret),
+                auth=httpx.BasicAuth(key_id, key_secret),
                 json=request_body,
             )
-            response.raise_for_status()
-            data = response.json()
+
+        if not response.is_success:
+            description = _razorpay_error(response)
+            if response.status_code == 401:
+                raise RuntimeError(
+                    "Razorpay rejected the API credentials (401). Regenerate/copy the Test Mode "
+                    f"Key ID + Key Secret and restart the backend. Razorpay says: {description}"
+                )
+            raise RuntimeError(
+                f"Razorpay Payment Links API returned HTTP {response.status_code}: {description}"
+            )
+
+        data = response.json()
 
         action.status = "CREATED"
         action.external_id = data.get("id")
@@ -147,7 +186,7 @@ def create_recovery_link(db: Session, case: RecoveryCase) -> RecoveryAction:
         db.refresh(action)
         return action
 
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx.HTTPError, RuntimeError, ValueError) as exc:
         action.status = "FAILED"
         action.error_message = str(exc)
         case.status = "ACTION_PROPOSED"

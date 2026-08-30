@@ -9,7 +9,7 @@ type RecoverySummary = {
   total_cases: number;
   recovery_rate: number;
   ai_plans?: number;
-  openai_plans?: number;
+  model_plans?: number;
 };
 
 type RecoveryCase = {
@@ -41,6 +41,8 @@ const money = (paise: number) =>
 
 const pretty = (value?: string | null) =>
   value ? value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
+
+const isModelPlanner = (source?: string | null) => source === "openai" || source === "gemini";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -83,7 +85,9 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/recovery/demo/failure`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Simulation failed");
-      const source = data.planner_source === "openai" ? `OpenAI · ${data.planner_model}` : "Safety fallback";
+      const source = isModelPlanner(data.planner_source)
+        ? `${pretty(data.planner_source)} · ${data.planner_model}`
+        : "Safety fallback";
       setMessage(`Demo case #${data.case_id} planned by ${source}`);
       await refresh();
     } catch (error) {
@@ -117,8 +121,8 @@ export default function Home() {
     refresh();
   }, []);
 
-  const aiBadge = selected?.planner_source === "openai"
-    ? `AI · ${selected.planner_model || "OpenAI"}`
+  const aiBadge = isModelPlanner(selected?.planner_source)
+    ? `AI · ${selected?.planner_model || pretty(selected?.planner_source)}`
     : selected?.planner_source
       ? "Safety Fallback"
       : "Legacy Case";
@@ -138,7 +142,7 @@ export default function Home() {
             <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               {mounted ? "JS ACTIVE" : "JS STARTING"}
             </span>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">AI Planner v0.5</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">AI Planner v0.6</span>
           </div>
         </div>
       </header>
@@ -180,7 +184,7 @@ export default function Home() {
           <Card label="Revenue at Risk" value={money(summary?.revenue_at_risk || 0)} />
           <Card label="Recovered Revenue" value={money(summary?.recovered_revenue || 0)} />
           <Card label="Recovery Rate" value={`${summary?.recovery_rate || 0}%`} />
-          <Card label="AI-Planned Cases" value={`${summary?.openai_plans || 0}/${summary?.ai_plans || 0}`} />
+          <Card label="AI-Planned Cases" value={`${summary?.model_plans || 0}/${summary?.ai_plans || 0}`} />
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
@@ -208,7 +212,9 @@ export default function Home() {
                       <p className="mt-1 text-xs text-slate-500">{pretty(item.diagnosis)}</p>
                       {item.planner_source && (
                         <p className="mt-1 text-[11px] font-semibold text-blue-600">
-                          {item.planner_source === "openai" ? `AI · ${item.planner_model}` : "Deterministic safety fallback"}
+                          {isModelPlanner(item.planner_source)
+                            ? `AI · ${item.planner_model || pretty(item.planner_source)}`
+                            : "Deterministic safety fallback"}
                         </p>
                       )}
                     </div>
@@ -227,7 +233,7 @@ export default function Home() {
                 <h3 className="mt-2 text-2xl font-bold">Decision trace</h3>
               </div>
               {selected && (
-                <span className={`rounded-full px-3 py-2 text-[11px] font-bold ${selected.planner_source === "openai" ? "bg-violet-400/15 text-violet-200" : "bg-amber-400/15 text-amber-200"}`}>
+                <span className={`rounded-full px-3 py-2 text-[11px] font-bold ${isModelPlanner(selected.planner_source) ? "bg-violet-400/15 text-violet-200" : "bg-amber-400/15 text-amber-200"}`}>
                   {aiBadge}
                 </span>
               )}

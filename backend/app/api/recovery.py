@@ -5,16 +5,17 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.ai_plan import AIPlan
 from app.models.audit_log import AuditLog
 from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
+from app.services.ai_planner import apply_ai_plan
 from app.services.recovery_executor import (
     create_recovery_link,
     policy_guard,
     reconcile_recovery_case,
 )
-from app.services.recovery_policy import decide_recovery_action
 
 
 router = APIRouter()
@@ -31,9 +32,33 @@ def _reconcile_waiting_cases(db: Session) -> None:
         try:
             reconcile_recovery_case(db, case)
         except Exception:
-            # Dashboard reads should remain available even if Razorpay status polling
-            # temporarily fails. The webhook path is still the primary production path.
             db.rollback()
+
+
+def _plan_for_case(db: Session, case_id: int) -> AIPlan | None:
+    return db.query(AIPlan).filter(AIPlan.recovery_case_id == case_id).first()
+
+
+def _case_payload(case: RecoveryCase, plan: AIPlan | None = None) -> dict:
+    return {
+        "id": case.id,
+        "razorpay_payment_id": case.razorpay_payment_id,
+        "amount": case.amount,
+        "currency": case.currency,
+        "status": case.status,
+        "diagnosis": case.diagnosis,
+        "confidence": case.confidence,
+        "recommended_action": case.recommended_action,
+        "reason": case.reason,
+        "attempt_count": case.attempt_count,
+        "recovered_amount": case.recovered_amount,
+        "planner_source": plan.planner_source if plan else None,
+        "planner_model": plan.planner_model if plan else None,
+        "delay_minutes": plan.delay_minutes if plan else None,
+        "customer_tone": plan.customer_tone if plan else None,
+        "created_at": case.created_at,
+        "updated_at": case.updated_at,
+    }
 
 
 @router.get("/cases")
@@ -45,25 +70,13 @@ def list_recovery_cases(db: Session = Depends(get_db)):
         .limit(100)
         .all()
     )
-
-    return [
-        {
-            "id": case.id,
-            "razorpay_payment_id": case.razorpay_payment_id,
-            "amount": case.amount,
-            "currency": case.currency,
-            "status": case.status,
-            "diagnosis": case.diagnosis,
-            "confidence": case.confidence,
-            "recommended_action": case.recommended_action,
-            "reason": case.reason,
-            "attempt_count": case.attempt_count,
-            "recovered_amount": case.recovered_amount,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at,
-        }
-        for case in cases
-    ]
+    plan_map = {
+        plan.recovery_case_id: plan
+        for plan in db.query(AIPlan)
+        .filter(AIPlan.recovery_case_id.in_([case.id for case in cases] or [-1]))
+        .all()
+    }
+    return [_case_payload(case, plan_map.get(case.id)) for case in cases]
 
 
 @router.get("/summary")
@@ -81,6 +94,12 @@ def recovery_summary(db: Session = Depends(get_db)):
         .scalar()
     )
     total_cases = db.query(func.count(RecoveryCase.id)).scalar()
+    ai_plans = db.query(func.count(AIPlan.id)).scalar()
+    openai_plans = (
+        db.query(func.count(AIPlan.id))
+        .filter(AIPlan.planner_source == "openai")
+        .scalar()
+    )
 
     recovery_rate = 0.0
     if total_at_risk:
@@ -92,17 +111,13 @@ def recovery_summary(db: Session = Depends(get_db)):
         "active_cases": active_cases,
         "total_cases": total_cases,
         "recovery_rate": recovery_rate,
+        "ai_plans": ai_plans,
+        "openai_plans": openai_plans,
     }
 
 
 @router.post("/demo/failure")
 def create_demo_failure(db: Session = Depends(get_db)):
-    """Create one customer-fixable failed payment for local/demo use.
-
-    This deliberately bypasses Razorpay webhook verification and is exposed as a
-    clearly-labelled demo endpoint. Real production ingestion remains webhook-only.
-    """
-
     suffix = uuid.uuid4().hex[:10]
     payment_id = f"pay_demo_{suffix}"
     payment_data = {
@@ -130,26 +145,29 @@ def create_demo_failure(db: Session = Depends(get_db)):
     )
     db.add(payment)
 
-    decision = decide_recovery_action(payment_data)
     recovery_case = RecoveryCase(
         razorpay_payment_id=payment_id,
         amount=payment_data["amount"],
         currency=payment_data["currency"],
         status="ACTION_PROPOSED",
-        diagnosis=decision.diagnosis,
-        confidence=decision.confidence,
-        recommended_action=decision.recommended_action,
-        reason=decision.reason,
+        diagnosis="planning",
+        confidence=0.0,
+        recommended_action="ESCALATE",
+        reason="Recovery plan is being generated.",
     )
     db.add(recovery_case)
     db.flush()
 
+    plan = apply_ai_plan(db, recovery_case, payment_data)
     db.add(
         AuditLog(
             recovery_case_id=recovery_case.id,
             event_type="DEMO_PAYMENT_FAILED",
             message="Demo failed payment created from dashboard.",
-            details={"razorpay_payment_id": payment_id},
+            details={
+                "razorpay_payment_id": payment_id,
+                "planner_source": plan.planner_source,
+            },
         )
     )
     db.commit()
@@ -158,6 +176,8 @@ def create_demo_failure(db: Session = Depends(get_db)):
         "status": "created",
         "case_id": recovery_case.id,
         "razorpay_payment_id": payment_id,
+        "planner_source": plan.planner_source,
+        "planner_model": plan.planner_model,
     }
 
 
@@ -187,22 +207,21 @@ def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
         .order_by(AuditLog.created_at.asc())
         .all()
     )
-
+    plan = _plan_for_case(db, case.id)
     guard = policy_guard(case)
 
     return {
-        "case": {
-            "id": case.id,
-            "razorpay_payment_id": case.razorpay_payment_id,
-            "amount": case.amount,
-            "currency": case.currency,
-            "status": case.status,
-            "diagnosis": case.diagnosis,
-            "confidence": case.confidence,
-            "recommended_action": case.recommended_action,
-            "reason": case.reason,
-            "attempt_count": case.attempt_count,
-            "recovered_amount": case.recovered_amount,
+        "case": _case_payload(case, plan),
+        "ai_plan": None if not plan else {
+            "diagnosis": plan.diagnosis,
+            "confidence": plan.confidence,
+            "recommended_action": plan.recommended_action,
+            "delay_minutes": plan.delay_minutes,
+            "reason": plan.reason,
+            "customer_tone": plan.customer_tone,
+            "planner_source": plan.planner_source,
+            "planner_model": plan.planner_model,
+            "provider_error": plan.provider_error,
         },
         "policy_guard": {
             "allowed": guard.allowed,

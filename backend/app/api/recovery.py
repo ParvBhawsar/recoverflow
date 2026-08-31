@@ -15,10 +15,19 @@ from app.services.recovery_executor import (
     create_recovery_link,
     policy_guard,
     reconcile_recovery_case,
+    stop_recovery_for_original_success,
 )
 
 
 router = APIRouter()
+
+NO_LONGER_AT_RISK_STATUSES = {
+    "RECOVERED",
+    "ORIGINAL_PAYMENT_CAPTURED",
+    "STOPPED",
+    "PROTECTION_ATTENTION_REQUIRED",
+    "DUPLICATE_COLLECTION_DETECTED",
+}
 
 
 def _reconcile_waiting_cases(db: Session) -> None:
@@ -56,6 +65,7 @@ def _case_payload(case: RecoveryCase, plan: AIPlan | None = None) -> dict:
         "planner_model": plan.planner_model if plan else None,
         "delay_minutes": plan.delay_minutes if plan else None,
         "customer_tone": plan.customer_tone if plan else None,
+        "late_success_protected": case.status == "ORIGINAL_PAYMENT_CAPTURED",
         "created_at": case.created_at,
         "updated_at": case.updated_at,
     }
@@ -82,15 +92,32 @@ def list_recovery_cases(db: Session = Depends(get_db)):
 @router.get("/summary")
 def recovery_summary(db: Session = Depends(get_db)):
     _reconcile_waiting_cases(db)
-    total_at_risk = db.query(func.coalesce(func.sum(RecoveryCase.amount), 0)).scalar()
+
+    revenue_at_risk = (
+        db.query(func.coalesce(func.sum(RecoveryCase.amount), 0))
+        .filter(RecoveryCase.status.notin_(NO_LONGER_AT_RISK_STATUSES))
+        .scalar()
+    )
+    total_case_value = db.query(func.coalesce(func.sum(RecoveryCase.amount), 0)).scalar()
     total_recovered = db.query(func.coalesce(func.sum(RecoveryCase.recovered_amount), 0)).scalar()
+    protected_value = (
+        db.query(func.coalesce(func.sum(RecoveryCase.amount), 0))
+        .filter(RecoveryCase.status == "ORIGINAL_PAYMENT_CAPTURED")
+        .scalar()
+    )
+    protected_cases = (
+        db.query(func.count(RecoveryCase.id))
+        .filter(RecoveryCase.status == "ORIGINAL_PAYMENT_CAPTURED")
+        .scalar()
+    )
+    attention_cases = (
+        db.query(func.count(RecoveryCase.id))
+        .filter(RecoveryCase.status == "PROTECTION_ATTENTION_REQUIRED")
+        .scalar()
+    )
     active_cases = (
         db.query(func.count(RecoveryCase.id))
-        .filter(
-            RecoveryCase.status.notin_(
-                ["RECOVERED", "ORIGINAL_PAYMENT_CAPTURED", "STOPPED"]
-            )
-        )
+        .filter(RecoveryCase.status.notin_(NO_LONGER_AT_RISK_STATUSES))
         .scalar()
     )
     total_cases = db.query(func.count(RecoveryCase.id)).scalar()
@@ -102,17 +129,20 @@ def recovery_summary(db: Session = Depends(get_db)):
     )
 
     recovery_rate = 0.0
-    if total_at_risk:
-        recovery_rate = round((total_recovered / total_at_risk) * 100, 2)
+    if total_case_value:
+        recovery_rate = round((total_recovered / total_case_value) * 100, 2)
 
     return {
-        "revenue_at_risk": total_at_risk,
+        "revenue_at_risk": revenue_at_risk,
         "recovered_revenue": total_recovered,
         "active_cases": active_cases,
         "total_cases": total_cases,
         "recovery_rate": recovery_rate,
         "ai_plans": ai_plans,
         "model_plans": model_plans,
+        "late_success_protected_cases": protected_cases,
+        "late_success_protected_value": protected_value,
+        "protection_attention_cases": attention_cases,
     }
 
 
@@ -181,6 +211,59 @@ def create_demo_failure(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/cases/{case_id}/demo/original-success")
+def simulate_original_payment_success(case_id: int, db: Session = Depends(get_db)):
+    """Demo-only late-success event for a synthetic payment.
+
+    Real production late-success handling is driven by signed Razorpay
+    payment.authorized/payment.captured webhooks. This endpoint exists only so the
+    localhost demo can prove the protection behavior without a public webhook URL.
+    """
+
+    case = db.query(RecoveryCase).filter(RecoveryCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Recovery case not found")
+
+    if not case.razorpay_payment_id.startswith("pay_demo_"):
+        raise HTTPException(
+            status_code=409,
+            detail="Late-success simulation is restricted to synthetic demo payments.",
+        )
+
+    if case.status in {"RECOVERED", "DUPLICATE_COLLECTION_DETECTED"}:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This recovery has already been collected. Create a fresh demo case and "
+                "simulate original success before paying the recovery link."
+            ),
+        )
+
+    payment = (
+        db.query(Payment)
+        .filter(Payment.razorpay_payment_id == case.razorpay_payment_id)
+        .first()
+    )
+    if payment:
+        payment.status = "captured"
+
+    result = stop_recovery_for_original_success(
+        db,
+        case,
+        source_event="demo.payment.captured",
+    )
+
+    return {
+        "status": "late_success_processed",
+        "case_id": case.id,
+        "case_status": result.case_status,
+        "cancelled_recovery_links": result.cancelled_links,
+        "already_stopped": result.already_stopped,
+        "needs_attention": result.needs_attention,
+        "reason": result.reason,
+    }
+
+
 @router.get("/cases/{case_id}")
 def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
     case = db.query(RecoveryCase).filter(RecoveryCase.id == case_id).first()
@@ -236,6 +319,7 @@ def get_recovery_case(case_id: int, db: Session = Depends(get_db)):
                 "external_url": action.external_url,
                 "recovery_payment_id": action.recovery_payment_id,
                 "error_message": action.error_message,
+                "details": action.details,
                 "created_at": action.created_at,
             }
             for action in actions

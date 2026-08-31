@@ -1,7 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
@@ -91,14 +91,39 @@ def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "environment": os.getenv("APP_ENV", "development"),
     }
 
 
 @app.get("/health")
 def health():
+    """Liveness check: verifies that the FastAPI process is responding."""
     return {"status": "healthy", "service": "recoverflow-api"}
+
+
+@app.get("/health/ready")
+def readiness_health():
+    """Readiness check: verifies database access and persisted merchant policy."""
+    db = SessionLocal()
+    try:
+        database_result = db.execute(text("SELECT 1")).scalar()
+        policy = get_or_create_policy(db)
+        return {
+            "status": "ready",
+            "database": "connected",
+            "database_result": database_result,
+            "merchant_policy": "loaded",
+            "policy_id": policy.id,
+        }
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=f"RecoverFlow is not ready: {type(exc).__name__}",
+        ) from exc
+    finally:
+        db.close()
 
 
 @app.get("/health/db")

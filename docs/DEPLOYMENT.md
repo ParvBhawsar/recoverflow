@@ -8,6 +8,31 @@ RecoverFlow uses a split deployment:
 
 No secret values belong in GitHub.
 
+## 0. Local pre-deployment check
+
+From the repository root on Windows PowerShell:
+
+```powershell
+cd "C:\Parv\Hackathons\Razorpay-AI-Buildathon\recoverflow"
+git pull
+.\scripts\check.ps1
+```
+
+This validates Python compilation/imports, Supabase connectivity, ESLint, and the Next.js production build.
+
+Then start the local app:
+
+```powershell
+.\scripts\dev.ps1
+```
+
+Useful local URLs:
+
+- Dashboard: `http://localhost:3000`
+- API docs: `http://127.0.0.1:8000/docs`
+- Liveness: `http://127.0.0.1:8000/health`
+- Readiness + database: `http://127.0.0.1:8000/health/ready`
+
 ## 1. Deploy the backend on Render
 
 Create a new **Blueprint** from the `ParvBhawsar/recoverflow` GitHub repository. Render reads the root `render.yaml` and creates the `recoverflow-api` Python web service on the free plan.
@@ -17,28 +42,33 @@ Provide the variables marked `sync: false` when Render asks for them:
 - `DB_HOST`
 - `DB_USER`
 - `DB_PASSWORD`
-- `FRONTEND_ORIGINS` — initially leave empty or use the eventual Vercel production URL after frontend deployment
+- `FRONTEND_ORIGINS` — initially leave empty or set after Vercel deployment
 - `RAZORPAY_WEBHOOK_SECRET`
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `GEMINI_API_KEY`
-- `OPENAI_API_KEY` — optional; Gemini is primary and OpenAI can be left blank
+- `OPENAI_API_KEY` — optional; leave blank while OpenAI fallback is disabled
 
 The Blueprint already supplies:
 
 - `APP_ENV=production`
 - `DB_PORT=5432`
 - `DB_NAME=postgres`
+- `DB_SSLMODE=require`
 - `GEMINI_MODEL=gemini-3.5-flash-lite`
-- health check `/health`
+- `OPENAI_FALLBACK_ENABLED=false`
+- readiness health check `/health/ready`
 - Singapore region
 - free compute plan
 
 After deployment, verify:
 
 - `https://<render-service>/health`
+- `https://<render-service>/health/ready`
 - `https://<render-service>/health/db`
 - `https://<render-service>/docs`
+
+Do not continue to frontend deployment until `/health/ready` returns `status: ready`.
 
 ## 2. Deploy the frontend on Vercel
 
@@ -103,4 +133,4 @@ The backend verifies the raw-body HMAC signature and uses the Razorpay event ID 
 
 ## Free-tier note
 
-Render free web services can spin down after inactivity, so the first request after an idle period can be slow. This is acceptable for the buildathon demo but should be warmed shortly before judging.
+Render free web services can spin down after inactivity, so the first request after an idle period can be slow. Warm the service shortly before a live demo.

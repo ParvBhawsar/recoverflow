@@ -5,21 +5,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.evaluation import router as evaluation_router
+from app.api.policy import router as policy_router
 from app.api.recovery import router as recovery_router
 from app.api.webhooks import router as webhook_router
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.models.ai_plan import AIPlan
 from app.models.audit_log import AuditLog
 from app.models.benchmark_run import BenchmarkRun
+from app.models.merchant_policy import MerchantPolicy
 from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
+from app.services.merchant_policy import get_or_create_policy
+from app.services.policy_runtime import apply_policy_to_runtime
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        policy = get_or_create_policy(db)
+        apply_policy_to_runtime(policy)
+    finally:
+        db.close()
+
     yield
 
 
@@ -54,6 +66,12 @@ app.include_router(
     evaluation_router,
     prefix="/recovery/evaluation",
     tags=["Evaluation"],
+)
+
+app.include_router(
+    policy_router,
+    prefix="/recovery/policy",
+    tags=["Merchant Safety Policy"],
 )
 
 

@@ -34,6 +34,23 @@ type RecoveryCase = {
   late_success_protected?: boolean;
 };
 
+type AuditLog = {
+  id: number;
+  event_type: string;
+  message: string;
+  details?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type CaseDetail = {
+  case: RecoveryCase;
+  policy_guard: {
+    allowed: boolean;
+    reason: string;
+  };
+  audit_logs: AuditLog[];
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 const money = (paise: number) =>
@@ -46,17 +63,55 @@ const money = (paise: number) =>
 const pretty = (value?: string | null) =>
   value ? value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
 
+const eventTime = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+};
+
 const isModelPlanner = (source?: string | null) => source === "openai" || source === "gemini";
+
+const eventTone = (eventType: string) => {
+  if (eventType.includes("STOP") || eventType.includes("PROTECT") || eventType.includes("CANCEL")) {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
+  }
+  if (eventType.includes("AI_PLAN")) {
+    return "border-violet-400/30 bg-violet-400/10 text-violet-100";
+  }
+  if (eventType.includes("FAIL") || eventType.includes("BLOCK")) {
+    return "border-amber-400/30 bg-amber-400/10 text-amber-100";
+  }
+  if (eventType.includes("RECOVER")) {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
+  }
+  return "border-white/10 bg-white/5 text-white/80";
+};
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const [clicks, setClicks] = useState(0);
   const [summary, setSummary] = useState<RecoverySummary | null>(null);
   const [cases, setCases] = useState<RecoveryCase[]>([]);
   const [selected, setSelected] = useState<RecoveryCase | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<CaseDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Ready");
   const [recoveryUrl, setRecoveryUrl] = useState<string | null>(null);
+
+  async function loadCaseDetail(caseId: number) {
+    try {
+      const res = await fetch(`${API_BASE}/recovery/cases/${caseId}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Could not load case detail");
+      const detail = (await res.json()) as CaseDetail;
+      setSelectedDetail(detail);
+    } catch {
+      setSelectedDetail(null);
+    }
+  }
 
   async function refresh() {
     setMessage("Refreshing…");
@@ -67,18 +122,28 @@ export default function Home() {
       ]);
       if (!summaryRes.ok || !casesRes.ok) throw new Error("Backend request failed");
       const nextSummary = await summaryRes.json();
-      const nextCases = await casesRes.json();
+      const nextCases = (await casesRes.json()) as RecoveryCase[];
       setSummary(nextSummary);
       setCases(nextCases);
+
       if (nextCases.length) {
-        setSelected((current) => nextCases.find((c: RecoveryCase) => c.id === current?.id) || nextCases[0]);
+        const target = nextCases.find((c) => c.id === selected?.id) || nextCases[0];
+        setSelected(target);
+        await loadCaseDetail(target.id);
       } else {
         setSelected(null);
+        setSelectedDetail(null);
       }
       setMessage("Live data loaded");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reach backend");
     }
+  }
+
+  async function selectCase(item: RecoveryCase) {
+    setSelected(item);
+    setRecoveryUrl(null);
+    await loadCaseDetail(item.id);
   }
 
   async function simulateFailure() {
@@ -180,7 +245,7 @@ export default function Home() {
             <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               {mounted ? "JS ACTIVE" : "JS STARTING"}
             </span>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Protection Demo v0.7</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Audit Timeline v0.8</span>
           </div>
         </div>
       </header>
@@ -193,13 +258,6 @@ export default function Home() {
             <p className="mt-2 text-slate-600">{message}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setClicks((v) => v + 1)}
-              className="relative z-20 cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold shadow-sm hover:bg-slate-50"
-            >
-              Test Click: {clicks}
-            </button>
             <button
               type="button"
               onClick={refresh}
@@ -226,7 +284,7 @@ export default function Home() {
           <Card label="AI-Planned Cases" value={`${summary?.model_plans || 0}/${summary?.ai_plans || 0}`} />
         </section>
 
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <section className="mt-6 grid gap-6 lg:grid-cols-[1.55fr_1fr]">
           <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
             <div className="border-b px-6 py-4">
               <h3 className="font-bold">Recovery Queue</h3>
@@ -243,7 +301,7 @@ export default function Home() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => { setSelected(item); setRecoveryUrl(null); }}
+                    onClick={() => selectCase(item)}
                     className={`relative z-20 grid w-full cursor-pointer grid-cols-[1.3fr_.7fr_1fr] gap-4 px-6 py-4 text-left hover:bg-blue-50 ${selected?.id === item.id ? "bg-blue-50" : "bg-white"}`}
                   >
                     <div>
@@ -280,6 +338,7 @@ export default function Home() {
                 </span>
               )}
             </div>
+
             {!selected ? (
               <p className="mt-8 text-sm text-white/60">Create or select a recovery case.</p>
             ) : (
@@ -362,6 +421,41 @@ export default function Home() {
                       : "Open Razorpay Payment Link"}
                   </a>
                 )}
+
+                <div className="border-t border-white/10 pt-5">
+                  <div className="mb-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">Audit Trail</p>
+                      <h4 className="mt-1 text-lg font-bold">Case timeline</h4>
+                    </div>
+                    <span className="text-[11px] text-white/40">
+                      {selectedDetail?.audit_logs?.length || 0} events
+                    </span>
+                  </div>
+
+                  {!selectedDetail?.audit_logs?.length ? (
+                    <p className="rounded-xl bg-white/5 p-4 text-xs text-white/50">No audit events recorded for this case yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedDetail.audit_logs.slice().reverse().map((log) => (
+                        <div key={log.id} className={`rounded-xl border p-3 ${eventTone(log.event_type)}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[11px] font-black uppercase tracking-wider">{pretty(log.event_type)}</p>
+                            <span className="shrink-0 text-[10px] opacity-50">{eventTime(log.created_at)}</span>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 opacity-80">{log.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedDetail?.policy_guard && (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-white/40">Deterministic policy guard</p>
+                      <p className="mt-1 text-xs leading-5 text-white/65">{selectedDetail.policy_guard.reason}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </aside>

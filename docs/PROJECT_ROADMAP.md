@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**13 / 23 major milestones complete — 57%**
+**14 / 23 major milestones complete — 61%**
 
 ## Completed
 
@@ -21,10 +21,10 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Per-case audit timeline
 - [x] Razorpay-inspired dashboard information architecture and UI redesign
 - [x] Persistent product blueprint and progress tracking
+- [x] Multi-scenario failed-payment simulator + dedicated Simulation Lab
 
 ## Next up
 
-- [ ] Multi-scenario failed-payment simulator
 - [ ] Synthetic evaluation dataset
 - [ ] RecoverFlow vs blind-retry baseline benchmark
 - [ ] Evaluation metrics and analytics views
@@ -50,7 +50,8 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 6. Duplicate-Charge Protection Center
 7. Merchant Controls / Safety Rules
 8. Demo & Benchmark Insights
+9. Simulation Lab
 
 ## Immediate focus
 
-Build evaluation evidence before adding more product surface area. The next engineering task is the **multi-scenario failure simulator**, followed by a synthetic benchmark comparing RecoverFlow against a naive blind-retry strategy.
+The multi-scenario simulator is implemented. The next engineering task is the **synthetic evaluation dataset**, followed immediately by a benchmark comparing RecoverFlow against a naive blind-retry strategy.

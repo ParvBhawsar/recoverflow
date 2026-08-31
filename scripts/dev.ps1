@@ -17,6 +17,23 @@ function Stop-PortProcess($port) {
     }
 }
 
+function Wait-BackendReady {
+    $readyUrl = 'http://127.0.0.1:8000/health/ready'
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        try {
+            $response = Invoke-RestMethod -Uri $readyUrl -TimeoutSec 2
+            if ($response.status -eq 'ready') {
+                Write-Host 'Backend + Supabase are ready.' -ForegroundColor Green
+                return
+            }
+        } catch {
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    throw "Backend did not become ready within 30 seconds. Check the backend terminal and run .\scripts\check.ps1 for diagnostics."
+}
+
 if (-not (Test-Path $python)) {
     throw 'Python venv missing. Run .\scripts\setup.ps1 first.'
 }
@@ -25,20 +42,30 @@ if (-not (Test-Path (Join-Path $backend '.env'))) {
     throw 'backend/.env is missing. Add Supabase + Razorpay values first.'
 }
 
+if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
+    throw 'Frontend dependencies are missing. Run .\scripts\setup.ps1 first.'
+}
+
 Stop-PortProcess 8000
 Stop-PortProcess 3000
 
 Write-Host 'Starting RecoverFlow backend on http://127.0.0.1:8000 ...' -ForegroundColor Cyan
 Start-Process powershell -ArgumentList '-NoExit','-Command',"Set-Location '$backend'; & '$python' -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
 
-Start-Sleep -Seconds 2
+Wait-BackendReady
 
 Write-Host 'Starting RecoverFlow frontend on http://localhost:3000 ...' -ForegroundColor Cyan
 Start-Process powershell -ArgumentList '-NoExit','-Command',"Set-Location '$frontend'; `$env:NEXT_PUBLIC_API_URL='http://127.0.0.1:8000'; npm run dev"
 
 Write-Host ''
 Write-Host 'RecoverFlow dev environment started.' -ForegroundColor Green
-Write-Host 'Frontend: http://localhost:3000'
-Write-Host 'Backend docs: http://127.0.0.1:8000/docs'
-Write-Host 'Recovery cases: http://127.0.0.1:8000/recovery/cases'
-Write-Host 'Recovery summary: http://127.0.0.1:8000/recovery/summary'
+Write-Host 'Dashboard:          http://localhost:3000'
+Write-Host 'Simulation Lab:     http://localhost:3000/simulator'
+Write-Host 'Dataset:            http://localhost:3000/evaluation'
+Write-Host 'Benchmark Lab:      http://localhost:3000/benchmark'
+Write-Host 'Evaluation Analytics: http://localhost:3000/analytics/evaluation'
+Write-Host 'Safety Rules:       http://localhost:3000/settings/policy'
+Write-Host 'Backend API:        http://127.0.0.1:8000'
+Write-Host 'Backend docs:       http://127.0.0.1:8000/docs'
+Write-Host 'Backend readiness:  http://127.0.0.1:8000/health/ready'
+Write-Host 'Database health:    http://127.0.0.1:8000/health/db'

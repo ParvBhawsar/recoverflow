@@ -48,10 +48,20 @@ if ($LASTEXITCODE -ne 0) { throw 'Database connectivity check failed.' }
 Pass 'Supabase PostgreSQL connection works'
 Pop-Location
 
-Step 'Frontend production build'
+Step 'Frontend lint + production build'
 Push-Location $frontend
 $previousApiUrl = $env:NEXT_PUBLIC_API_URL
 $env:NEXT_PUBLIC_API_URL = 'http://127.0.0.1:8000'
+
+npm run lint
+$lintExit = $LASTEXITCODE
+if ($lintExit -ne 0) {
+    if ($null -eq $previousApiUrl) { Remove-Item Env:NEXT_PUBLIC_API_URL -ErrorAction SilentlyContinue } else { $env:NEXT_PUBLIC_API_URL = $previousApiUrl }
+    Pop-Location
+    throw 'Frontend ESLint check failed.'
+}
+Pass 'Frontend lint succeeds'
+
 npm run build
 $buildExit = $LASTEXITCODE
 if ($null -eq $previousApiUrl) {

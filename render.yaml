@@ -7,7 +7,7 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     autoDeploy: true
     envVars:
       - key: APP_ENV
@@ -24,6 +24,8 @@ services:
         sync: false
       - key: DB_PASSWORD
         sync: false
+      - key: DB_SSLMODE
+        value: require
       - key: FRONTEND_ORIGINS
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET

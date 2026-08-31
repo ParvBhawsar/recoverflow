@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="0.4.0",
+    version="0.7.0",
     lifespan=lifespan,
 )
 
@@ -54,7 +54,7 @@ def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "0.4.0",
+        "version": "0.7.0",
     }
 
 

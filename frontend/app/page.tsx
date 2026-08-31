@@ -10,6 +10,9 @@ type RecoverySummary = {
   recovery_rate: number;
   ai_plans?: number;
   model_plans?: number;
+  late_success_protected_cases?: number;
+  late_success_protected_value?: number;
+  protection_attention_cases?: number;
 };
 
 type RecoveryCase = {
@@ -28,6 +31,7 @@ type RecoveryCase = {
   planner_model?: string | null;
   delay_minutes?: number | null;
   customer_tone?: string | null;
+  late_success_protected?: boolean;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -107,10 +111,38 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Execution failed");
       setRecoveryUrl(data.payment_link_url || null);
-      setMessage("Recovery link created successfully");
+      setMessage("Recovery link created. Late-success protection is now armed.");
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Execution failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function simulateOriginalSuccess() {
+    if (!selected) return;
+    setBusy(true);
+    setMessage("Simulating late success of the original payment…");
+    try {
+      const res = await fetch(
+        `${API_BASE}/recovery/cases/${selected.id}/demo/original-success`,
+        { method: "POST" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Late-success simulation failed");
+
+      if (data.needs_attention) {
+        setMessage("Late success detected, but recovery-link cancellation needs attention.");
+      } else {
+        const count = data.cancelled_recovery_links || 0;
+        setMessage(
+          `Duplicate charge prevented — original payment succeeded and ${count} recovery link${count === 1 ? " was" : "s were"} cancelled.`,
+        );
+      }
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Late-success simulation failed");
     } finally {
       setBusy(false);
     }
@@ -127,6 +159,12 @@ export default function Home() {
       ? "Safety Fallback"
       : "Legacy Case";
 
+  const canExecute =
+    selected?.recommended_action === "CREATE_RECOVERY_LINK" && selected?.status === "ACTION_PROPOSED";
+  const canSimulateLateSuccess =
+    selected?.status === "WAITING_FOR_CUSTOMER" &&
+    selected?.razorpay_payment_id.startsWith("pay_demo_");
+
   return (
     <main className="relative z-10 min-h-screen bg-[#f5f7fb] text-[#16181d] pointer-events-auto">
       <header className="border-b bg-white">
@@ -142,7 +180,7 @@ export default function Home() {
             <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               {mounted ? "JS ACTIVE" : "JS STARTING"}
             </span>
-            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">AI Planner v0.6</span>
+            <span className="rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">Protection Demo v0.7</span>
           </div>
         </div>
       </header>
@@ -175,15 +213,16 @@ export default function Home() {
               disabled={busy}
               className="relative z-20 cursor-pointer rounded-xl bg-[#3157e8] px-5 py-3 font-bold text-white shadow-sm hover:bg-[#2448cc] disabled:opacity-50"
             >
-              {busy ? "Planning…" : "+ Simulate Failed Payment"}
+              {busy ? "Working…" : "+ Simulate Failed Payment"}
             </button>
           </div>
         </div>
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <Card label="Revenue at Risk" value={money(summary?.revenue_at_risk || 0)} />
           <Card label="Recovered Revenue" value={money(summary?.recovered_revenue || 0)} />
           <Card label="Recovery Rate" value={`${summary?.recovery_rate || 0}%`} />
+          <Card label="Late-Success Protected" value={money(summary?.late_success_protected_value || 0)} />
           <Card label="AI-Planned Cases" value={`${summary?.model_plans || 0}/${summary?.ai_plans || 0}`} />
         </section>
 
@@ -217,6 +256,9 @@ export default function Home() {
                             : "Deterministic safety fallback"}
                         </p>
                       )}
+                      {item.late_success_protected && (
+                        <p className="mt-1 text-[11px] font-bold text-emerald-600">Duplicate charge prevented</p>
+                      )}
                     </div>
                     <p className="font-bold">{money(item.amount)}</p>
                     <p className="text-sm font-semibold">{pretty(item.status)}</p>
@@ -243,7 +285,10 @@ export default function Home() {
             ) : (
               <div className="mt-6 space-y-4">
                 <Info label="Payment" value={selected.razorpay_payment_id} />
-                <Info label="Amount" value={money(selected.amount)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <Info label="Amount" value={money(selected.amount)} />
+                  <Info label="Case Status" value={pretty(selected.status)} />
+                </div>
                 <Info label="Diagnosis" value={pretty(selected.diagnosis)} />
                 <Info label="Action" value={pretty(selected.recommended_action)} />
                 <Info label="Confidence" value={selected.confidence == null ? "—" : `${Math.round(selected.confidence * 100)}%`} />
@@ -254,7 +299,7 @@ export default function Home() {
                 <p className="rounded-xl bg-white/5 p-4 text-sm leading-6 text-white/70">{selected.reason || "No reasoning recorded."}</p>
                 <p className="text-xs leading-5 text-white/45">AI proposes the next step. Deterministic policy still decides whether execution is allowed.</p>
 
-                {selected.recommended_action === "CREATE_RECOVERY_LINK" && selected.status !== "RECOVERED" && (
+                {canExecute && (
                   <button
                     type="button"
                     onClick={executeRecovery}
@@ -263,6 +308,42 @@ export default function Home() {
                   >
                     Execute Recovery
                   </button>
+                )}
+
+                {selected.status === "WAITING_FOR_CUSTOMER" && (
+                  <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm leading-6 text-amber-100">
+                    Recovery link is live. If the original payment settles now, RecoverFlow should cancel this recovery path before the customer can pay twice.
+                  </div>
+                )}
+
+                {canSimulateLateSuccess && (
+                  <button
+                    type="button"
+                    onClick={simulateOriginalSuccess}
+                    disabled={busy}
+                    className="relative z-20 w-full cursor-pointer rounded-xl bg-amber-400 px-4 py-3 font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    Simulate Late Original Success
+                  </button>
+                )}
+
+                {selected.status === "ORIGINAL_PAYMENT_CAPTURED" && (
+                  <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/15 p-4 text-sm leading-6 text-emerald-100">
+                    <p className="font-bold">✓ Duplicate charge prevented</p>
+                    <p className="mt-1 text-emerald-100/75">The original payment succeeded late, so RecoverFlow stopped recovery and cancelled the open Payment Link.</p>
+                  </div>
+                )}
+
+                {selected.status === "PROTECTION_ATTENTION_REQUIRED" && (
+                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/15 p-4 text-sm font-semibold text-amber-100">
+                    Late success was detected, but automatic Payment Link cancellation needs manual attention.
+                  </div>
+                )}
+
+                {selected.status === "DUPLICATE_COLLECTION_DETECTED" && (
+                  <div className="rounded-xl border border-red-400/20 bg-red-500/15 p-4 text-sm font-semibold text-red-100">
+                    Duplicate collection detected. Recovery had already been paid; refund review is required.
+                  </div>
                 )}
 
                 {selected.status === "RECOVERED" && (
@@ -276,7 +357,9 @@ export default function Home() {
                     rel="noreferrer"
                     className="relative z-20 block break-all rounded-xl bg-emerald-500/15 p-4 text-sm font-bold text-emerald-200 underline"
                   >
-                    Open Razorpay Payment Link
+                    {selected.status === "ORIGINAL_PAYMENT_CAPTURED"
+                      ? "Verify Razorpay Recovery Link Is Cancelled"
+                      : "Open Razorpay Payment Link"}
                   </a>
                 )}
               </div>

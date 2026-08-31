@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**14 / 23 major milestones complete — 61%**
+**15 / 23 major milestones complete — 65%**
 
 ## Completed
 
@@ -15,17 +15,17 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Real Razorpay Payment Link recovery execution
 - [x] Paid recovery reconciliation for local demo
 - [x] Gemini structured AI recovery planner
-- [x] Deterministic fallback and policy guard
+- [x] Deterministic safety fallback and policy guard
 - [x] Late-success detection
 - [x] Automatic Razorpay Payment Link cancellation on late original success
 - [x] Per-case audit timeline
 - [x] Razorpay-inspired dashboard information architecture and UI redesign
 - [x] Persistent product blueprint and progress tracking
-- [x] Multi-scenario failed-payment simulator + dedicated Simulation Lab
+- [x] Multi-scenario failed-payment simulator
+- [x] Versioned synthetic evaluation dataset (rf-synth-v1)
 
 ## Next up
 
-- [ ] Synthetic evaluation dataset
 - [ ] RecoverFlow vs blind-retry baseline benchmark
 - [ ] Evaluation metrics and analytics views
 - [ ] Merchant safety controls and configurable policy settings
@@ -50,8 +50,15 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 6. Duplicate-Charge Protection Center
 7. Merchant Controls / Safety Rules
 8. Demo & Benchmark Insights
-9. Simulation Lab
+
+## Evaluation assets
+
+- Simulation Lab: `/simulator`
+- Synthetic dataset explorer: `/evaluation`
+- Dataset API: `/recovery/evaluation/dataset`
+- Dataset version: `rf-synth-v1`
+- Dataset is explicitly synthetic and must never be represented as production merchant performance data.
 
 ## Immediate focus
 
-The multi-scenario simulator is implemented. The next engineering task is the **synthetic evaluation dataset**, followed immediately by a benchmark comparing RecoverFlow against a naive blind-retry strategy.
+Build the **RecoverFlow vs blind-retry benchmark** against the labelled synthetic dataset. Report both strategy accuracy and safety outcomes, with synthetic/simulated metrics clearly labelled.

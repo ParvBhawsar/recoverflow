@@ -13,6 +13,7 @@ from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
 from app.services.ai_planner import apply_ai_plan
+from app.services.recovery_executor import stop_recovery_for_original_success
 
 
 router = APIRouter()
@@ -156,30 +157,10 @@ async def razorpay_webhook(
             .first()
         )
         if recovery_case:
-            recovery_case.status = "ORIGINAL_PAYMENT_CAPTURED"
-            recovery_case.recommended_action = "STOP"
-            recovery_case.reason = (
-                "Original payment later succeeded; recovery stopped to prevent duplicate collection."
-            )
-
-            active_actions = (
-                db.query(RecoveryAction)
-                .filter(
-                    RecoveryAction.recovery_case_id == recovery_case.id,
-                    RecoveryAction.status.in_(["EXECUTING", "CREATED"]),
-                )
-                .all()
-            )
-            for action in active_actions:
-                action.status = "STOPPED"
-
-            db.add(
-                AuditLog(
-                    recovery_case_id=recovery_case.id,
-                    event_type="RECOVERY_STOPPED",
-                    message="Original payment succeeded; recovery stopped to prevent duplicate collection.",
-                    details={"event_type": event_type},
-                )
+            stop_recovery_for_original_success(
+                db,
+                recovery_case,
+                source_event=event_type,
             )
 
         webhook_event.processed = True
@@ -205,6 +186,7 @@ async def razorpay_webhook(
                 if recovery_case and recovery_case.status not in {
                     "ORIGINAL_PAYMENT_CAPTURED",
                     "STOPPED",
+                    "PROTECTION_ATTENTION_REQUIRED",
                 }:
                     action.status = "PAID"
                     action.recovery_payment_id = razorpay_payment_id

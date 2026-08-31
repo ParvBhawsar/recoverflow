@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**17 / 23 major milestones complete — 74%**
+**18 / 23 major milestones complete — 78%**
 
 ## Completed
 
@@ -25,10 +25,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Versioned synthetic evaluation dataset (`rf-synth-v1`)
 - [x] RecoverFlow vs blind-retry benchmark engine and Benchmark Lab
 - [x] Persistent evaluation analytics with benchmark history and category-level analysis
-
-## Next up
-
-- [ ] Merchant safety controls and configurable policy settings
+- [x] Merchant Safety Controls with persistent Supabase policy and live runtime enforcement
 
 ## Later / submission readiness
 
@@ -66,6 +63,15 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - Ground-truth labels are withheld from Gemini during benchmark inference.
 - All benchmark results are synthetic evaluation evidence and must never be represented as production merchant performance data.
 
+## Merchant safety assets
+
+- Safety Rules UI: `/settings/policy`
+- Policy API: `GET/PUT /recovery/policy`
+- Reset defaults: `POST /recovery/policy/reset`
+- Configurable: autonomous amount ceiling, minimum AI confidence, attempt cap, autonomous Payment Link creation.
+- Mandatory invariants: WAIT_AND_VERIFY, ESCALATE, and duplicate-charge protection cannot be disabled.
+- Policy changes are persisted in Supabase, reapplied at backend startup, and audited.
+
 ## Immediate focus
 
-Build **Merchant Safety Controls** so the ₹25,000 autonomous ceiling, minimum confidence, attempt limit, and allowed autonomous actions become visible and configurable merchant policy rather than hidden constants in backend code.
+Move RecoverFlow from a localhost prototype to a **publicly deployed system**. Deploy the FastAPI backend and Next.js frontend, configure production-safe environment variables, then point Razorpay Test Mode webhooks at the public backend for a real end-to-end signed webhook demo.

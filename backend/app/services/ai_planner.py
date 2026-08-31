@@ -40,6 +40,13 @@ def _clean_env(name: str) -> str:
     return value
 
 
+def _env_enabled(name: str, default: bool = False) -> bool:
+    value = _clean_env(name).lower()
+    if not value:
+        return default
+    return value in {"1", "true", "yes", "on"}
+
+
 def _fallback(payment: dict, provider_error: str | None = None) -> PlannerDecision:
     baseline: RecoveryDecision = decide_recovery_action(payment)
     tone = "supportive" if baseline.recommended_action == "CREATE_RECOVERY_LINK" else "neutral"
@@ -258,7 +265,8 @@ def _plan_with_openai(payment: dict, api_key: str) -> PlannerDecision:
 
 def plan_recovery(payment: dict) -> PlannerDecision:
     gemini_key = _clean_env("GEMINI_API_KEY")
-    openai_key = _clean_env("OPENAI_API_KEY")
+    openai_enabled = _env_enabled("OPENAI_FALLBACK_ENABLED", default=False)
+    openai_key = _clean_env("OPENAI_API_KEY") if openai_enabled else ""
     errors: list[str] = []
 
     if gemini_key:
@@ -267,7 +275,7 @@ def plan_recovery(payment: dict) -> PlannerDecision:
         except Exception as exc:
             errors.append(str(exc))
 
-    if openai_key:
+    if openai_enabled and openai_key:
         try:
             return _plan_with_openai(payment, openai_key)
         except Exception as exc:
@@ -275,8 +283,10 @@ def plan_recovery(payment: dict) -> PlannerDecision:
 
     if not gemini_key:
         errors.append("GEMINI_API_KEY is not configured")
-    if not openai_key:
-        errors.append("OPENAI_API_KEY is not configured")
+    if openai_enabled and not openai_key:
+        errors.append("OPENAI_FALLBACK_ENABLED is true but OPENAI_API_KEY is not configured")
+    if not openai_enabled:
+        errors.append("OpenAI fallback disabled")
 
     return _fallback(payment, " | ".join(errors))
 

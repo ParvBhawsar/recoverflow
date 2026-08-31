@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,6 +22,16 @@ from app.services.merchant_policy import get_or_create_policy
 from app.services.policy_runtime import apply_policy_to_runtime
 
 
+def _cors_origins() -> list[str]:
+    configured = [
+        origin.strip().rstrip("/")
+        for origin in (os.getenv("FRONTEND_ORIGINS") or "").split(",")
+        if origin.strip()
+    ]
+    defaults = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    return list(dict.fromkeys([*defaults, *configured]))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -38,13 +49,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="0.9.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,13 +91,14 @@ def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "0.9.0",
+        "version": "1.0.0",
+        "environment": os.getenv("APP_ENV", "development"),
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "recoverflow-api"}
 
 
 @app.get("/health/db")

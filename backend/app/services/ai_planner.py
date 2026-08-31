@@ -77,12 +77,12 @@ def _validate_plan(
     delay_minutes = max(0, min(1440, int(data.get("delay_minutes") or 0)))
     amount = int(payment.get("amount") or 0)
 
-    if amount >= 2_500_000 and action == "CREATE_RECOVERY_LINK":
+    if amount > 2_500_000 and action == "CREATE_RECOVERY_LINK":
         action = "ESCALATE"
         confidence = max(confidence, 0.99)
         reason = (
             "AI proposed autonomous recovery, but hard policy requires human review "
-            "for high-value transactions."
+            "for transactions above the ₹25,000 autonomous limit."
         )
     else:
         reason = str(

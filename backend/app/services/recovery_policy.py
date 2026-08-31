@@ -31,7 +31,7 @@ def decide_recovery_action(payment: dict) -> RecoveryDecision:
     source = (payment.get("error_source") or "unknown").lower()
     amount = int(payment.get("amount") or 0)
 
-    if amount >= 2_500_000:  # INR 25,000 in paise
+    if amount > 2_500_000:  # Above INR 25,000 in paise
         return RecoveryDecision(
             diagnosis="high_value_failure",
             confidence=0.99,

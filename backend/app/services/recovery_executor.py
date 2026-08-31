@@ -21,8 +21,23 @@ class GuardResult:
     reason: str
 
 
+@dataclass(frozen=True)
+class StopRecoveryResult:
+    case_status: str
+    cancelled_links: int
+    already_stopped: bool
+    needs_attention: bool
+    reason: str
+
+
 def policy_guard(case: RecoveryCase) -> GuardResult:
-    if case.status in {"RECOVERED", "ORIGINAL_PAYMENT_CAPTURED", "STOPPED"}:
+    if case.status in {
+        "RECOVERED",
+        "ORIGINAL_PAYMENT_CAPTURED",
+        "STOPPED",
+        "PROTECTION_ATTENTION_REQUIRED",
+        "DUPLICATE_COLLECTION_DETECTED",
+    }:
         return GuardResult(False, f"Case is already terminal: {case.status}.")
 
     if case.recommended_action != "CREATE_RECOVERY_LINK":
@@ -89,6 +104,163 @@ def _extract_payment_id(data: dict) -> str | None:
         return None
 
     return payment.get("payment_id") or payment.get("id")
+
+
+def stop_recovery_for_original_success(
+    db: Session,
+    case: RecoveryCase,
+    source_event: str,
+) -> StopRecoveryResult:
+    """Stop recovery when the original payment succeeds after an earlier failure.
+
+    Any open Razorpay Payment Link created by RecoverFlow is cancelled before the
+    case is marked protected. This keeps the recovery channel from collecting a
+    second payment after the original transaction has already succeeded.
+    """
+
+    if case.status in {"ORIGINAL_PAYMENT_CAPTURED", "STOPPED"}:
+        return StopRecoveryResult(
+            case_status=case.status,
+            cancelled_links=0,
+            already_stopped=True,
+            needs_attention=False,
+            reason=case.reason or "Recovery was already stopped.",
+        )
+
+    if case.status == "RECOVERED":
+        case.status = "DUPLICATE_COLLECTION_DETECTED"
+        case.recommended_action = "REFUND_REVIEW"
+        case.reason = (
+            "The recovery payment was already collected before the original payment later "
+            "succeeded. Human refund review is required."
+        )
+        db.add(
+            AuditLog(
+                recovery_case_id=case.id,
+                event_type="DUPLICATE_COLLECTION_DETECTED",
+                message="Original payment succeeded after recovery had already been collected.",
+                details={"source_event": source_event},
+            )
+        )
+        db.commit()
+        return StopRecoveryResult(
+            case_status=case.status,
+            cancelled_links=0,
+            already_stopped=False,
+            needs_attention=True,
+            reason=case.reason,
+        )
+
+    active_actions = (
+        db.query(RecoveryAction)
+        .filter(
+            RecoveryAction.recovery_case_id == case.id,
+            RecoveryAction.status.in_(["EXECUTING", "CREATED"]),
+        )
+        .order_by(RecoveryAction.created_at.desc())
+        .all()
+    )
+
+    cancelled_links = 0
+    cancellation_errors: list[str] = []
+    key_id: str | None = None
+    key_secret: str | None = None
+
+    for action in active_actions:
+        if action.status == "CREATED" and action.external_id:
+            try:
+                if key_id is None or key_secret is None:
+                    key_id, key_secret = _credentials()
+
+                with httpx.Client(timeout=12.0) as client:
+                    response = client.post(
+                        f"{RAZORPAY_API_BASE}/payment_links/{action.external_id}/cancel",
+                        auth=httpx.BasicAuth(key_id, key_secret),
+                    )
+
+                if not response.is_success:
+                    raise RuntimeError(
+                        f"HTTP {response.status_code}: {_razorpay_error(response)}"
+                    )
+
+                data = response.json()
+                action.status = "STOPPED"
+                action.details = {
+                    **(action.details or {}),
+                    "razorpay_status": data.get("status", "cancelled"),
+                    "stopped_due_to_original_success": True,
+                    "source_event": source_event,
+                }
+                cancelled_links += 1
+            except Exception as exc:
+                action.status = "CANCEL_FAILED"
+                action.error_message = str(exc)
+                cancellation_errors.append(
+                    f"{action.external_id}: {exc}"
+                )
+        else:
+            action.status = "STOPPED"
+            action.details = {
+                **(action.details or {}),
+                "stopped_due_to_original_success": True,
+                "source_event": source_event,
+            }
+
+    case.recommended_action = "STOP"
+
+    if cancellation_errors:
+        case.status = "PROTECTION_ATTENTION_REQUIRED"
+        case.reason = (
+            "Original payment succeeded, but at least one recovery Payment Link could not be "
+            "cancelled automatically. Recovery is blocked and manual attention is required."
+        )
+        db.add(
+            AuditLog(
+                recovery_case_id=case.id,
+                event_type="PROTECTION_ATTENTION_REQUIRED",
+                message="Late success detected, but automatic recovery-link cancellation failed.",
+                details={
+                    "source_event": source_event,
+                    "cancelled_links": cancelled_links,
+                    "errors": cancellation_errors,
+                },
+            )
+        )
+        db.commit()
+        return StopRecoveryResult(
+            case_status=case.status,
+            cancelled_links=cancelled_links,
+            already_stopped=False,
+            needs_attention=True,
+            reason=case.reason,
+        )
+
+    case.status = "ORIGINAL_PAYMENT_CAPTURED"
+    case.reason = (
+        "Original payment later succeeded; recovery stopped and any open recovery Payment "
+        "Link was cancelled to prevent duplicate collection."
+    )
+    db.add(
+        AuditLog(
+            recovery_case_id=case.id,
+            event_type="RECOVERY_STOPPED",
+            message="Original payment succeeded; recovery stopped to prevent duplicate collection.",
+            details={
+                "source_event": source_event,
+                "cancelled_links": cancelled_links,
+                "duplicate_charge_prevented": True,
+            },
+        )
+    )
+    db.commit()
+
+    return StopRecoveryResult(
+        case_status=case.status,
+        cancelled_links=cancelled_links,
+        already_stopped=False,
+        needs_attention=False,
+        reason=case.reason,
+    )
 
 
 def reconcile_recovery_case(db: Session, case: RecoveryCase) -> bool:

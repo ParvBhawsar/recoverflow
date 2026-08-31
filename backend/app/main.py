@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.api.evaluation import router as evaluation_router
 from app.api.recovery import router as recovery_router
 from app.api.webhooks import router as webhook_router
 from app.database import Base, engine
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="0.7.0",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -48,13 +49,19 @@ app.include_router(
     tags=["Recovery"],
 )
 
+app.include_router(
+    evaluation_router,
+    prefix="/recovery/evaluation",
+    tags=["Evaluation"],
+)
+
 
 @app.get("/")
 def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "0.7.0",
+        "version": "0.8.0",
     }
 
 

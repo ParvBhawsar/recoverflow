@@ -29,6 +29,87 @@ NO_LONGER_AT_RISK_STATUSES = {
     "DUPLICATE_COLLECTION_DETECTED",
 }
 
+DEMO_SCENARIOS = {
+    "incorrect_otp": {
+        "name": "Incorrect OTP",
+        "category": "customer_fixable",
+        "description": "Customer entered the wrong OTP during card authentication.",
+        "amount": 499900,
+        "method": "card",
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_source": "customer",
+        "error_step": "payment_authentication",
+        "error_reason": "incorrect_otp",
+        "expected_behavior": "CREATE_RECOVERY_LINK",
+        "why_it_matters": "Low-risk customer-fixable failures are good candidates for bounded recovery.",
+    },
+    "insufficient_funds": {
+        "name": "Insufficient Funds",
+        "category": "customer_fixable",
+        "description": "Issuer declined the transaction because the account had insufficient balance.",
+        "amount": 129900,
+        "method": "card",
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_source": "customer",
+        "error_step": "payment_authorization",
+        "error_reason": "insufficient_funds",
+        "expected_behavior": "CREATE_RECOVERY_LINK",
+        "why_it_matters": "The customer may be able to retry later or use another payment method.",
+    },
+    "gateway_timeout": {
+        "name": "Gateway Timeout",
+        "category": "transient",
+        "description": "The payment gateway timed out while the transaction outcome was still uncertain.",
+        "amount": 799900,
+        "method": "card",
+        "error_code": "GATEWAY_ERROR",
+        "error_source": "gateway",
+        "error_step": "payment_processing",
+        "error_reason": "gateway_timeout",
+        "expected_behavior": "WAIT_AND_VERIFY",
+        "why_it_matters": "Blind retries can double-charge when a delayed success arrives after a timeout.",
+    },
+    "bank_processing_error": {
+        "name": "Bank Processing Error",
+        "category": "transient",
+        "description": "The issuing bank returned a temporary processing failure.",
+        "amount": 189900,
+        "method": "netbanking",
+        "error_code": "SERVER_ERROR",
+        "error_source": "bank",
+        "error_step": "payment_processing",
+        "error_reason": "bank_processing_error",
+        "expected_behavior": "WAIT_AND_VERIFY",
+        "why_it_matters": "A temporary bank failure should be observed before launching another collection path.",
+    },
+    "high_value_auth_failure": {
+        "name": "High-Value Authentication Failure",
+        "category": "high_value",
+        "description": "A ₹75,000 card payment failed during authentication.",
+        "amount": 7500000,
+        "method": "card",
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_source": "customer",
+        "error_step": "payment_authentication",
+        "error_reason": "incorrect_otp",
+        "expected_behavior": "ESCALATE",
+        "why_it_matters": "Hard policy must override autonomous AI recovery above the merchant value threshold.",
+    },
+    "ambiguous_failure": {
+        "name": "Ambiguous Failure",
+        "category": "ambiguous",
+        "description": "The payment failed without enough diagnostic context to safely automate recovery.",
+        "amount": 349900,
+        "method": "card",
+        "error_code": "UNKNOWN_ERROR",
+        "error_source": "unknown",
+        "error_step": "unknown",
+        "error_reason": "unknown",
+        "expected_behavior": "ESCALATE",
+        "why_it_matters": "Uncertain cases should prefer human review over confident-looking automation.",
+    },
+}
+
 
 def _reconcile_waiting_cases(db: Session) -> None:
     waiting_cases = (
@@ -68,6 +149,87 @@ def _case_payload(case: RecoveryCase, plan: AIPlan | None = None) -> dict:
         "late_success_protected": case.status == "ORIGINAL_PAYMENT_CAPTURED",
         "created_at": case.created_at,
         "updated_at": case.updated_at,
+    }
+
+
+def _create_demo_case(db: Session, scenario_id: str) -> dict:
+    scenario = DEMO_SCENARIOS.get(scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Unknown demo scenario")
+
+    suffix = uuid.uuid4().hex[:10]
+    payment_id = f"pay_demo_{scenario_id[:10]}_{suffix}"
+    payment_data = {
+        "id": payment_id,
+        "amount": scenario["amount"],
+        "currency": "INR",
+        "status": "failed",
+        "method": scenario["method"],
+        "error_code": scenario["error_code"],
+        "error_source": scenario["error_source"],
+        "error_step": scenario["error_step"],
+        "error_reason": scenario["error_reason"],
+    }
+
+    payment = Payment(
+        razorpay_payment_id=payment_id,
+        amount=payment_data["amount"],
+        currency=payment_data["currency"],
+        status=payment_data["status"],
+        method=payment_data["method"],
+        error_code=payment_data["error_code"],
+        error_source=payment_data["error_source"],
+        error_step=payment_data["error_step"],
+        error_reason=payment_data["error_reason"],
+    )
+    db.add(payment)
+
+    recovery_case = RecoveryCase(
+        razorpay_payment_id=payment_id,
+        amount=payment_data["amount"],
+        currency=payment_data["currency"],
+        status="ACTION_PROPOSED",
+        diagnosis="planning",
+        confidence=0.0,
+        recommended_action="ESCALATE",
+        reason="Recovery plan is being generated.",
+    )
+    db.add(recovery_case)
+    db.flush()
+
+    plan = apply_ai_plan(db, recovery_case, payment_data)
+    guard = policy_guard(recovery_case)
+
+    db.add(
+        AuditLog(
+            recovery_case_id=recovery_case.id,
+            event_type="DEMO_PAYMENT_FAILED",
+            message=f"Simulation scenario '{scenario['name']}' created from the dashboard.",
+            details={
+                "razorpay_payment_id": payment_id,
+                "scenario_id": scenario_id,
+                "scenario_category": scenario["category"],
+                "expected_behavior": scenario["expected_behavior"],
+                "planner_source": plan.planner_source,
+                "planner_model": plan.planner_model,
+            },
+        )
+    )
+    db.commit()
+
+    return {
+        "status": "created",
+        "case_id": recovery_case.id,
+        "razorpay_payment_id": payment_id,
+        "scenario_id": scenario_id,
+        "scenario_name": scenario["name"],
+        "expected_behavior": scenario["expected_behavior"],
+        "planner_source": plan.planner_source,
+        "planner_model": plan.planner_model,
+        "ai_action": plan.recommended_action,
+        "confidence": plan.confidence,
+        "policy_guard_allowed": guard.allowed,
+        "policy_guard_reason": guard.reason,
     }
 
 
@@ -146,69 +308,32 @@ def recovery_summary(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/demo/scenarios")
+def list_demo_scenarios():
+    return [
+        {
+            "id": scenario_id,
+            "name": scenario["name"],
+            "category": scenario["category"],
+            "description": scenario["description"],
+            "amount": scenario["amount"],
+            "currency": "INR",
+            "method": scenario["method"],
+            "expected_behavior": scenario["expected_behavior"],
+            "why_it_matters": scenario["why_it_matters"],
+        }
+        for scenario_id, scenario in DEMO_SCENARIOS.items()
+    ]
+
+
 @router.post("/demo/failure")
 def create_demo_failure(db: Session = Depends(get_db)):
-    suffix = uuid.uuid4().hex[:10]
-    payment_id = f"pay_demo_{suffix}"
-    payment_data = {
-        "id": payment_id,
-        "amount": 499900,
-        "currency": "INR",
-        "status": "failed",
-        "method": "card",
-        "error_code": "BAD_REQUEST_ERROR",
-        "error_source": "customer",
-        "error_step": "payment_authentication",
-        "error_reason": "incorrect_otp",
-    }
+    return _create_demo_case(db, "incorrect_otp")
 
-    payment = Payment(
-        razorpay_payment_id=payment_id,
-        amount=payment_data["amount"],
-        currency=payment_data["currency"],
-        status=payment_data["status"],
-        method=payment_data["method"],
-        error_code=payment_data["error_code"],
-        error_source=payment_data["error_source"],
-        error_step=payment_data["error_step"],
-        error_reason=payment_data["error_reason"],
-    )
-    db.add(payment)
 
-    recovery_case = RecoveryCase(
-        razorpay_payment_id=payment_id,
-        amount=payment_data["amount"],
-        currency=payment_data["currency"],
-        status="ACTION_PROPOSED",
-        diagnosis="planning",
-        confidence=0.0,
-        recommended_action="ESCALATE",
-        reason="Recovery plan is being generated.",
-    )
-    db.add(recovery_case)
-    db.flush()
-
-    plan = apply_ai_plan(db, recovery_case, payment_data)
-    db.add(
-        AuditLog(
-            recovery_case_id=recovery_case.id,
-            event_type="DEMO_PAYMENT_FAILED",
-            message="Demo failed payment created from dashboard.",
-            details={
-                "razorpay_payment_id": payment_id,
-                "planner_source": plan.planner_source,
-            },
-        )
-    )
-    db.commit()
-
-    return {
-        "status": "created",
-        "case_id": recovery_case.id,
-        "razorpay_payment_id": payment_id,
-        "planner_source": plan.planner_source,
-        "planner_model": plan.planner_model,
-    }
+@router.post("/demo/failure/{scenario_id}")
+def create_scenario_failure(scenario_id: str, db: Session = Depends(get_db)):
+    return _create_demo_case(db, scenario_id)
 
 
 @router.post("/cases/{case_id}/demo/original-success")

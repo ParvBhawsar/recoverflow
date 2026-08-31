@@ -7,7 +7,10 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
+      - key: APP_ENV
+        value: production
       - key: PYTHON_VERSION
         value: 3.12.10
       - key: DB_HOST
@@ -20,6 +23,8 @@ services:
         sync: false
       - key: DB_PASSWORD
         sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
       - key: RAZORPAY_KEY_ID
@@ -29,7 +34,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.7-flash
+        value: gemini-3.5-flash-lite
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL

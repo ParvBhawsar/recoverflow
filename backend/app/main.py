@@ -10,6 +10,7 @@ from app.api.webhooks import router as webhook_router
 from app.database import Base, engine
 from app.models.ai_plan import AIPlan
 from app.models.audit_log import AuditLog
+from app.models.benchmark_run import BenchmarkRun
 from app.models.payment import Payment
 from app.models.recovery_action import RecoveryAction
 from app.models.recovery_case import RecoveryCase
@@ -25,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RecoverFlow API",
     description="AI-powered revenue recovery agent for Razorpay merchants",
-    version="0.8.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -61,7 +62,7 @@ def root():
     return {
         "service": "RecoverFlow",
         "status": "running",
-        "version": "0.8.0",
+        "version": "0.9.0",
     }
 
 

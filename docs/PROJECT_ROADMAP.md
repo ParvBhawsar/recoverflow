@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**15 / 23 major milestones complete — 65%**
+**17 / 23 major milestones complete — 74%**
 
 ## Completed
 
@@ -22,12 +22,12 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Razorpay-inspired dashboard information architecture and UI redesign
 - [x] Persistent product blueprint and progress tracking
 - [x] Multi-scenario failed-payment simulator
-- [x] Versioned synthetic evaluation dataset (rf-synth-v1)
+- [x] Versioned synthetic evaluation dataset (`rf-synth-v1`)
+- [x] RecoverFlow vs blind-retry benchmark engine and Benchmark Lab
+- [x] Persistent evaluation analytics with benchmark history and category-level analysis
 
 ## Next up
 
-- [ ] RecoverFlow vs blind-retry baseline benchmark
-- [ ] Evaluation metrics and analytics views
 - [ ] Merchant safety controls and configurable policy settings
 
 ## Later / submission readiness
@@ -55,10 +55,17 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 - Simulation Lab: `/simulator`
 - Synthetic dataset explorer: `/evaluation`
+- Benchmark Lab: `/benchmark`
+- Evaluation Analytics: `/analytics/evaluation`
 - Dataset API: `/recovery/evaluation/dataset`
+- Benchmark API: `POST /recovery/evaluation/benchmark`
+- Latest stored benchmark: `GET /recovery/evaluation/benchmark/latest`
+- Benchmark history: `GET /recovery/evaluation/benchmark/history`
 - Dataset version: `rf-synth-v1`
-- Dataset is explicitly synthetic and must never be represented as production merchant performance data.
+- Benchmark runs are persisted in Supabase.
+- Ground-truth labels are withheld from Gemini during benchmark inference.
+- All benchmark results are synthetic evaluation evidence and must never be represented as production merchant performance data.
 
 ## Immediate focus
 
-Build the **RecoverFlow vs blind-retry benchmark** against the labelled synthetic dataset. Report both strategy accuracy and safety outcomes, with synthetic/simulated metrics clearly labelled.
+Build **Merchant Safety Controls** so the ₹25,000 autonomous ceiling, minimum confidence, attempt limit, and allowed autonomous actions become visible and configurable merchant policy rather than hidden constants in backend code.

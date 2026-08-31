@@ -14,6 +14,11 @@ TRANSIENT_REASONS = {
     "gateway_error",
     "payment_failed",
     "server_error",
+    "gateway_timeout",
+    "network_timeout",
+    "bank_processing_error",
+    "issuer_unavailable",
+    "state_unknown",
 }
 
 CUSTOMER_FIXABLE_REASONS = {
@@ -30,6 +35,15 @@ def decide_recovery_action(payment: dict) -> RecoveryDecision:
     reason = (payment.get("error_reason") or "unknown").lower()
     source = (payment.get("error_source") or "unknown").lower()
     amount = int(payment.get("amount") or 0)
+
+    # Final-state uncertainty takes priority: verify before creating any new collection path.
+    if reason in TRANSIENT_REASONS or source in {"bank", "gateway"}:
+        return RecoveryDecision(
+            diagnosis="transient_payment_failure",
+            confidence=0.86,
+            recommended_action="WAIT_AND_VERIFY",
+            reason="The failure may be transient; verify final payment state before collecting again.",
+        )
 
     if amount > 2_500_000:  # Above INR 25,000 in paise
         return RecoveryDecision(
@@ -48,14 +62,6 @@ def decide_recovery_action(payment: dict) -> RecoveryDecision:
                 "The failure is customer-fixable and falls within bounded autonomous "
                 "recovery limits, so a new Razorpay Payment Link can be offered safely."
             ),
-        )
-
-    if reason in TRANSIENT_REASONS or source in {"bank", "gateway"}:
-        return RecoveryDecision(
-            diagnosis="transient_payment_failure",
-            confidence=0.86,
-            recommended_action="WAIT_AND_VERIFY",
-            reason="The failure may be transient; verify final payment state before collecting again.",
         )
 
     return RecoveryDecision(

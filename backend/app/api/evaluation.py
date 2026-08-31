@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.services.benchmark import run_benchmark
 from app.services.evaluation_dataset import (
     DATASET_DESCRIPTION,
     DATASET_VERSION,
@@ -32,3 +33,18 @@ def get_evaluation_case(case_id: str):
         "synthetic": True,
         "record": row,
     }
+
+
+@router.post("/benchmark")
+def run_live_benchmark():
+    """Evaluate RecoverFlow against a blind-retry baseline on rf-synth-v1.
+
+    This is a synthetic benchmark. The Gemini batch request receives only payment
+    context; expected labels and rationales are withheld from the model.
+    """
+    try:
+        return run_benchmark()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Benchmark failed: {exc}") from exc

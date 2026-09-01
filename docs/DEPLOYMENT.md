@@ -18,7 +18,7 @@ git pull
 .\scripts\check.ps1
 ```
 
-This validates Python compilation/imports, Supabase connectivity, ESLint, and the Next.js production build.
+This validates Python compilation/imports, the backend unit suite, Supabase connectivity, ESLint, and the Next.js production build.
 
 Then start the local app:
 
@@ -42,12 +42,11 @@ Provide the variables marked `sync: false` when Render asks for them:
 - `DB_HOST`
 - `DB_USER`
 - `DB_PASSWORD`
-- `FRONTEND_ORIGINS` — initially leave empty or set after Vercel deployment
+- `FRONTEND_ORIGINS` — initially leave empty or use `http://localhost:3000`; replace it after Vercel deployment
 - `RAZORPAY_WEBHOOK_SECRET`
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `GEMINI_API_KEY`
-- `OPENAI_API_KEY` — optional; leave blank while OpenAI fallback is disabled
 
 The Blueprint already supplies:
 
@@ -104,9 +103,33 @@ Multiple origins can be comma-separated. Localhost remains enabled for developme
 
 Restart/redeploy the Render service after changing this value.
 
-## 4. Configure the real Razorpay Test Mode webhook
+## 4. Run the automated production smoke test
 
-Once the backend is public, configure Razorpay Test Mode to send signed events to:
+From the repository root:
+
+```powershell
+.\scripts\smoke-prod.ps1 `
+  -BackendUrl "https://<render-service>" `
+  -FrontendUrl "https://<vercel-production-domain>"
+```
+
+It checks:
+
+- backend root/version
+- backend + database readiness
+- Supabase connection
+- merchant safety policy + mandatory duplicate protection
+- `rf-synth-v1` evaluation dataset
+- every judge-facing frontend route
+- production CORS from Vercel to Render
+
+Do not configure Razorpay webhooks until this script ends with:
+
+`RecoverFlow production smoke test passed.`
+
+## 5. Configure the real Razorpay Test Mode webhook
+
+Once the backend is public and the smoke test passes, configure Razorpay Test Mode to send signed events to:
 
 `https://<render-service>/webhooks/razorpay`
 
@@ -119,9 +142,9 @@ Relevant events for RecoverFlow include:
 - `payment.captured`
 - `payment_link.paid`
 
-The backend verifies the raw-body HMAC signature and uses the Razorpay event ID for idempotency.
+The backend verifies raw-body HMAC signatures and uses the Razorpay event ID for idempotency.
 
-## 5. Production smoke test
+## 6. Judge-facing production flow
 
 1. Open the deployed Vercel dashboard.
 2. Simulate a failed payment and confirm Gemini creates a plan.

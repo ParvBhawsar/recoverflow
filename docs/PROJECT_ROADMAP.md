@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**18 / 23 major milestones complete — 78%**
+**19 / 23 major milestones complete — 83%**
 
 ## Completed
 
@@ -26,16 +26,14 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] RecoverFlow vs blind-retry benchmark engine and Benchmark Lab
 - [x] Persistent evaluation analytics with benchmark history and category-level analysis
 - [x] Merchant Safety Controls with persistent Supabase policy and live runtime enforcement
+- [x] Automated backend unit tests, frontend lint/build validation, and GitHub Actions CI
 
-## Later / submission readiness
+## Remaining / submission readiness
 
-- [ ] Public backend + frontend deployment
-- [ ] Real public Razorpay webhook configuration and end-to-end verification
-- [ ] Automated backend/frontend tests and CI
+- [ ] Public backend + frontend deployment and real Razorpay webhook end-to-end verification
 - [ ] Judge-facing demo walkthrough mode
-- [ ] README, architecture diagram and API documentation
-- [ ] Public-repository cleanup and security review
-- [ ] Final pitch, demo video and buildathon submission polish
+- [ ] README, architecture diagram, API documentation, and public-repository security cleanup
+- [ ] Final pitch, demo video, and buildathon submission polish
 
 ## Final dashboard structure
 
@@ -72,6 +70,16 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - Mandatory invariants: WAIT_AND_VERIFY, ESCALATE, and duplicate-charge protection cannot be disabled.
 - Policy changes are persisted in Supabase, reapplied at backend startup, and audited.
 
+## Quality assets
+
+- Full local diagnostic: `.\scripts\check.ps1`
+- Backend tests: `backend/tests/`
+- Pytest discovery is isolated to automated tests only.
+- Manual webhook smoke test: `backend/scripts/manual_webhook_test.py`
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- CI validates backend compile + unit tests, frontend ESLint, and Next.js production build.
+- Latest validated CI run: backend tests passed, frontend lint passed, frontend production build passed.
+
 ## Immediate focus
 
-Move RecoverFlow from a localhost prototype to a **publicly deployed system**. Deploy the FastAPI backend and Next.js frontend, configure production-safe environment variables, then point Razorpay Test Mode webhooks at the public backend for a real end-to-end signed webhook demo.
+Deploy RecoverFlow publicly, configure production environment variables, and point Razorpay Test Mode webhooks at the public backend. After the public end-to-end flow is verified, build the judge-facing walkthrough and finish documentation/submission polish.

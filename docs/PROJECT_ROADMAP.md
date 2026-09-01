@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**21 / 23 major milestones complete — 91%**
+**22 / 23 major milestones complete — 96%**
 
 ## Completed
 
@@ -29,10 +29,10 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Automated backend unit tests, frontend lint/build validation, and GitHub Actions CI
 - [x] Public Render backend + Vercel frontend + real Razorpay Test Mode signed webhook end-to-end verification
 - [x] Judge-facing Demo Mode command center (`/demo`)
+- [x] Root README, architecture documentation, API reference, and security guidance
 
 ## Remaining / submission readiness
 
-- [ ] README, architecture diagram, API documentation, and public-repository security cleanup
 - [ ] Final pitch, demo video, and buildathon submission polish
 
 ## Final dashboard structure
@@ -82,6 +82,14 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - CI validates backend compile + unit tests, frontend ESLint, and Next.js production build.
 - Production webhook path uses signed HMAC verification, event-id idempotency, fast acknowledgement, and background processing.
 
+## Documentation assets
+
+- Root project overview: `README.md`
+- Architecture and safety flow: `docs/ARCHITECTURE.md`
+- API reference: `docs/API.md`
+- Deployment guide: `docs/DEPLOYMENT.md`
+- Security guidance: `SECURITY.md`
+
 ## Immediate focus
 
-Finish submission readiness: tighten the README and architecture/API documentation, run a public-repository security pass, then prepare the final pitch and demo video around the `/demo` judge flow.
+Prepare the final pitch and demo video around `/demo`, capture the production end-to-end flow, and finish the Razorpay AI Buildathon submission with live links and clearly labelled synthetic benchmark evidence.

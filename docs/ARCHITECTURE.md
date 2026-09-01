@@ -181,9 +181,9 @@ Gemini API
 Razorpay Test Mode APIs + Webhooks
 ```
 
-## Production limitations / future work
+## Current Test Mode scope and live-traffic hardening
 
-For a production financial system, the prototype should be extended with:
+The deployed system is production-shaped but intentionally restricted to Razorpay Test Mode. Before processing live customer payments, complete a formal hardening phase covering:
 
 - multi-merchant authentication and tenant isolation
 - database migrations instead of startup `create_all`

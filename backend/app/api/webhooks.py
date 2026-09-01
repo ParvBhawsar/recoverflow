@@ -1,7 +1,4 @@
-import hashlib
-import hmac
 import json
-import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -14,22 +11,10 @@ from app.models.recovery_case import RecoveryCase
 from app.models.webhook_event import WebhookEvent
 from app.services.ai_planner import apply_ai_plan
 from app.services.recovery_executor import stop_recovery_for_original_success
+from app.services.webhook_security import verify_webhook_signature
 
 
 router = APIRouter()
-
-
-def verify_webhook_signature(body: bytes, received_signature: str) -> bool:
-    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
-    if not webhook_secret:
-        raise RuntimeError("RAZORPAY_WEBHOOK_SECRET is not configured")
-
-    expected_signature = hmac.new(
-        webhook_secret.encode("utf-8"),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected_signature, received_signature)
 
 
 def extract_payment_entity(payload: dict) -> dict:

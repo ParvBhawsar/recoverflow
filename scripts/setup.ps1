@@ -12,9 +12,9 @@ if (-not (Test-Path (Join-Path $backend 'venv'))) {
 }
 
 $python = Join-Path $backend 'venv\Scripts\python.exe'
-Write-Host 'Installing backend dependencies...'
+Write-Host 'Installing backend dependencies + test tools...'
 & $python -m pip install --upgrade pip
-& $python -m pip install -r (Join-Path $backend 'requirements.txt')
+& $python -m pip install -r (Join-Path $backend 'requirements-dev.txt')
 
 if (-not (Test-Path (Join-Path $backend '.env'))) {
     Write-Warning 'backend/.env is missing. Create it with your Supabase and Razorpay values before starting the backend.'
@@ -27,4 +27,4 @@ Pop-Location
 
 Write-Host ''
 Write-Host 'Setup complete.' -ForegroundColor Green
-Write-Host 'Next: run .\scripts\dev.ps1 from the repo root.'
+Write-Host 'Next: run .\scripts\check.ps1, then .\scripts\dev.ps1 from the repo root.'

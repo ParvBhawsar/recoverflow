@@ -76,8 +76,8 @@ export function AppShell({ children, title, description, actions }: { children: 
           </div>
         </nav>
         <div className="m-3 rounded-xl border border-[#e5e9f2] bg-[#fafbfe] p-3.5">
-          <div className="flex items-center gap-2 text-[10px] font-bold text-[#526078]"><span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.10)]" />Production connected</div>
-          <p className="mt-2 text-[10px] leading-4 text-[#8b94a8]">Razorpay Test Mode · signed webhooks</p>
+          <div className="flex items-center gap-2 text-[10px] font-bold text-[#526078]"><span className="h-2 w-2 rounded-full bg-[#2f5bff] shadow-[0_0_0_3px_rgba(47,91,255,.10)]" />Razorpay integration</div>
+          <p className="mt-2 text-[10px] leading-4 text-[#8b94a8]">Test Mode · signed webhooks · policy guarded</p>
           <a href={`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/docs`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-bold text-[#2f5bff] hover:underline">API reference <Icon name="external" className="h-3 w-3" /></a>
         </div>
       </aside>
@@ -119,13 +119,13 @@ export function SectionCard({ children, className = "" }: { children: ReactNode;
   return <section className={`rounded-[14px] border border-[#e5e9f1] bg-white shadow-[0_5px_18px_rgba(21,32,65,.035)] ${className}`}>{children}</section>;
 }
 
-export function Metric({ label, value, detail, accent = "blue" }: { label: string; value: string; detail?: string; accent?: "blue" | "green" | "violet" | "amber" }) {
+export function Metric({ label, value, detail, accent = "blue", loading = false }: { label: string; value: string; detail?: string; accent?: "blue" | "green" | "violet" | "amber"; loading?: boolean }) {
   const accentClass = { blue: "bg-blue-50 text-[#2f5bff]", green: "bg-emerald-50 text-emerald-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600" }[accent];
   return (
     <div className="rounded-[14px] border border-[#e5e9f1] bg-white p-4 shadow-[0_4px_16px_rgba(21,32,65,.03)] transition-transform duration-200 hover:-translate-y-0.5">
       <div className="flex items-center justify-between gap-3"><p className="text-[9px] font-extrabold uppercase tracking-[0.11em] text-[#8c95a8]">{label}</p><span className={`h-6 w-6 rounded-lg ${accentClass}`} /></div>
-      <p className="mt-3 text-[24px] font-[780] tracking-[-0.04em] text-[#14203d]">{value}</p>
-      {detail && <p className="mt-1 text-[10px] font-medium text-[#929aad]">{detail}</p>}
+      {loading ? <div className="skeleton mt-3 h-7 w-28 rounded-lg" /> : <p className="mt-3 text-[24px] font-[780] tracking-[-0.04em] text-[#14203d]">{value}</p>}
+      {loading ? <div className="skeleton mt-2 h-3 w-24 rounded" /> : detail && <p className="mt-1 text-[10px] font-medium text-[#929aad]">{detail}</p>}
     </div>
   );
 }

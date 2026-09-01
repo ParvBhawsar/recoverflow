@@ -32,6 +32,24 @@ if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
 }
 Pass 'Frontend dependencies found'
 
+Step 'Repository test hygiene'
+$strayTests = @(git -C $root ls-files --others --exclude-standard -- 'backend/tests/test_*.py')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not inspect Git status for local-only tests.'
+}
+if ($strayTests.Count -gt 0) {
+    Write-Host '[ERROR] Local-only pytest files were found. These are not part of the GitHub test suite:' -ForegroundColor Red
+    foreach ($file in $strayTests) {
+        Write-Host "  - $file" -ForegroundColor Yellow
+    }
+    Write-Host ''
+    Write-Host 'Move or delete stale local tests before running diagnostics.' -ForegroundColor Yellow
+    Write-Host 'Example for the old RecoverFlow test:' -ForegroundColor Yellow
+    Write-Host '  Remove-Item .\backend\tests\test_recovery_flow.py' -ForegroundColor Yellow
+    throw 'Local-only pytest files would make local checks differ from CI.'
+}
+Pass 'No unexpected local-only pytest files'
+
 Step 'Backend syntax + imports'
 Push-Location $backend
 & $python -m compileall -q app

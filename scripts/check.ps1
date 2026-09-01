@@ -42,26 +42,29 @@ Pass 'Backend Python files compile'
 if ($LASTEXITCODE -ne 0) { throw 'FastAPI import failed.' }
 Pass 'FastAPI application imports'
 
+Step 'Backend unit tests'
+& $python -m pytest
+if ($LASTEXITCODE -ne 0) { throw 'Backend pytest suite failed.' }
+Pass 'Backend unit tests pass'
+
 Step 'Supabase database'
 & $python -c "from sqlalchemy import text; from app.database import engine; c=engine.connect(); print('SELECT 1 =', c.execute(text('SELECT 1')).scalar()); c.close()"
 if ($LASTEXITCODE -ne 0) { throw 'Database connectivity check failed.' }
 Pass 'Supabase PostgreSQL connection works'
 Pop-Location
 
-Step 'Frontend lint + production build'
+Step 'Frontend lint'
+Push-Location $frontend
+npm run lint
+$lintExit = $LASTEXITCODE
+Pop-Location
+if ($lintExit -ne 0) { throw 'Frontend ESLint failed.' }
+Pass 'Frontend ESLint passes'
+
+Step 'Frontend production build'
 Push-Location $frontend
 $previousApiUrl = $env:NEXT_PUBLIC_API_URL
 $env:NEXT_PUBLIC_API_URL = 'http://127.0.0.1:8000'
-
-npm run lint
-$lintExit = $LASTEXITCODE
-if ($lintExit -ne 0) {
-    if ($null -eq $previousApiUrl) { Remove-Item Env:NEXT_PUBLIC_API_URL -ErrorAction SilentlyContinue } else { $env:NEXT_PUBLIC_API_URL = $previousApiUrl }
-    Pop-Location
-    throw 'Frontend ESLint check failed.'
-}
-Pass 'Frontend lint succeeds'
-
 npm run build
 $buildExit = $LASTEXITCODE
 if ($null -eq $previousApiUrl) {

@@ -37,12 +37,21 @@ function EmptyState() {
   );
 }
 
+function QueueLoading() {
+  return <div className="divide-y divide-[#eef1f5]">{[0,1,2,3].map((row) => <div key={row} className="grid grid-cols-[1.2fr_1fr_.6fr_.8fr] gap-5 px-5 py-4"><div><div className="skeleton h-3 w-32 rounded"/><div className="skeleton mt-2 h-2 w-16 rounded"/></div><div className="skeleton h-3 w-28 rounded"/><div className="skeleton h-3 w-16 rounded"/><div className="skeleton h-7 w-24 rounded-full"/></div>)}</div>;
+}
+
+function InspectorLoading() {
+  return <div className="p-1"><div className="skeleton h-2.5 w-20 rounded"/><div className="skeleton mt-3 h-5 w-44 rounded"/><div className="mt-5 grid grid-cols-2 gap-2.5"><div className="skeleton h-16 rounded-[10px]"/><div className="skeleton h-16 rounded-[10px]"/></div><div className="skeleton mt-4 h-28 rounded-[11px]"/><div className="skeleton mt-3 h-16 rounded-[10px]"/></div>;
+}
+
 export default function DashboardPage() {
   const [summary, setSummary] = useState<RecoverySummary | null>(null);
   const [cases, setCases] = useState<RecoveryCase[]>([]);
   const [selected, setSelected] = useState<RecoveryCase | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [message, setMessage] = useState("Connecting to recovery engine…");
   const [recoveryUrl, setRecoveryUrl] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -76,6 +85,8 @@ export default function DashboardPage() {
       setMessage("Live data synced");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not reach recovery service");
+    } finally {
+      setHasLoaded(true);
     }
   }
 
@@ -146,6 +157,7 @@ export default function DashboardPage() {
   const canExecute = selected?.status === "ACTION_PROPOSED" && selected.recommended_action === "CREATE_RECOVERY_LINK" && detail?.policy_guard.allowed;
   const canSimulateLate = selected?.status === "WAITING_FOR_CUSTOMER" && selected.razorpay_payment_id.startsWith("pay_demo_");
   const recentLogs = detail?.audit_logs?.slice(-5).reverse() || [];
+  const hasError = message.toLowerCase().includes("unavailable") || message.toLowerCase().includes("could not") || message.toLowerCase().includes("failed");
 
   return (
     <AppShell
@@ -160,15 +172,15 @@ export default function DashboardPage() {
     >
       <div className="mx-auto max-w-[1380px]">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[11px] border border-[#e4e9f1] bg-white px-4 py-3 shadow-[0_3px_12px_rgba(19,30,60,.025)]">
-          <div className="flex items-center gap-2.5"><span className={`h-2 w-2 rounded-full ${message.toLowerCase().includes("unavailable") || message.toLowerCase().includes("could not") ? "bg-rose-500" : "bg-emerald-500"}`}/><span className="text-[10px] font-semibold text-[#657087]">{message}</span></div>
+          <div className="flex items-center gap-2.5"><span className={`h-2 w-2 rounded-full ${!hasLoaded ? "animate-pulse bg-[#2f5bff]" : hasError ? "bg-rose-500" : "bg-emerald-500"}`}/><span className="text-[10px] font-semibold text-[#657087]">{message}</span></div>
           <div className="flex items-center gap-4 text-[9px] font-semibold text-[#9aa2b0]"><span>Razorpay Test Mode</span><span className="hidden sm:inline">Signed webhooks</span><span className="hidden md:inline">Supabase persistence</span></div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Revenue at risk" value={money(summary?.revenue_at_risk || 0)} detail={`${summary?.active_cases || 0} active cases`} accent="blue" />
-          <Metric label="Recovered revenue" value={money(summary?.recovered_revenue || 0)} detail={`${recoveredCount} confirmed recoveries`} accent="green" />
-          <Metric label="Recovery rate" value={`${summary?.recovery_rate || 0}%`} detail="recovered / total case value" accent="violet" />
-          <Metric label="Late-success protected" value={money(summary?.late_success_protected_value || 0)} detail={`${summary?.late_success_protected_cases || 0} duplicate risks stopped`} accent="amber" />
+          <Metric loading={!hasLoaded} label="Revenue at risk" value={money(summary?.revenue_at_risk || 0)} detail={`${summary?.active_cases || 0} active cases`} accent="blue" />
+          <Metric loading={!hasLoaded} label="Recovered revenue" value={money(summary?.recovered_revenue || 0)} detail={`${recoveredCount} confirmed recoveries`} accent="green" />
+          <Metric loading={!hasLoaded} label="Recovery rate" value={`${summary?.recovery_rate || 0}%`} detail="recovered / total case value" accent="violet" />
+          <Metric loading={!hasLoaded} label="Late-success protected" value={money(summary?.late_success_protected_value || 0)} detail={`${summary?.late_success_protected_cases || 0} duplicate risks stopped`} accent="amber" />
         </div>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[1.45fr_.75fr]">
@@ -178,7 +190,7 @@ export default function DashboardPage() {
               <div className="relative w-full sm:w-[240px]"><svg viewBox="0 0 24 24" className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ba3b1]" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payment, diagnosis, status…" className="w-full rounded-[9px] border border-[#e1e5ed] bg-[#fafbfe] py-2 pl-9 pr-3 text-[9px] font-medium text-[#34405c] placeholder:text-[#a9b0bd] focus:bg-white"/></div>
             </div>
 
-            {filteredCases.length === 0 ? <EmptyState/> : (
+            {!hasLoaded ? <QueueLoading/> : filteredCases.length === 0 ? <EmptyState/> : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
                   <thead className="bg-[#fafbfe] text-[8px] font-extrabold uppercase tracking-[0.08em] text-[#9aa2b1]"><tr><th className="px-5 py-2.5">Payment</th><th className="px-4 py-2.5">Diagnosis</th><th className="px-4 py-2.5">Amount</th><th className="px-4 py-2.5">Decision</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Updated</th></tr></thead>
@@ -201,7 +213,7 @@ export default function DashboardPage() {
 
           <div className="space-y-5">
             <SectionCard className="p-5">
-              {!selected ? <EmptyState/> : (
+              {!hasLoaded ? <InspectorLoading/> : !selected ? <EmptyState/> : (
                 <>
                   <div className="flex items-start justify-between gap-3"><div><p className="text-[8px] font-extrabold uppercase tracking-[0.13em] text-[#2f5bff]">Case inspector</p><h2 className="mt-1.5 text-[16px] font-[760] tracking-[-0.03em] text-[#17213f]">{pretty(selected.diagnosis)}</h2><p className="mt-1 font-mono text-[8px] text-[#9aa2b0]">{selected.razorpay_payment_id}</p></div><StatusPill label={pretty(selected.status)} tone={statusTone(selected.status)} /></div>
 
@@ -227,7 +239,7 @@ export default function DashboardPage() {
 
             <SectionCard className="overflow-hidden">
               <div className="border-b border-[#edf0f5] px-4 py-3"><p className="text-[10px] font-extrabold text-[#28334f]">Recent activity</p></div>
-              {recentLogs.length === 0 ? <div className="px-4 py-6 text-[9px] text-[#969ead]">Select a case to inspect its audit trail.</div> : <div className="divide-y divide-[#eef1f5]">{recentLogs.map((log) => <div key={log.id} className="flex gap-3 px-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#2f5bff] shadow-[0_0_0_4px_rgba(47,91,255,.08)]"/><div><p className="text-[8px] font-extrabold uppercase tracking-[.07em] text-[#59647b]">{pretty(log.event_type)}</p><p className="mt-1 text-[9px] leading-4 text-[#7e8799]">{log.message}</p><p className="mt-1 text-[7px] font-medium text-[#a1a8b5]">{shortDate(log.created_at)}</p></div></div>)}</div>}
+              {!hasLoaded ? <div className="space-y-3 px-4 py-5"><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/></div> : recentLogs.length === 0 ? <div className="px-4 py-6 text-[9px] text-[#969ead]">Select a case to inspect its audit trail.</div> : <div className="divide-y divide-[#eef1f5]">{recentLogs.map((log) => <div key={log.id} className="flex gap-3 px-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#2f5bff] shadow-[0_0_0_4px_rgba(47,91,255,.08)]"/><div><p className="text-[8px] font-extrabold uppercase tracking-[.07em] text-[#59647b]">{pretty(log.event_type)}</p><p className="mt-1 text-[9px] leading-4 text-[#7e8799]">{log.message}</p><p className="mt-1 text-[7px] font-medium text-[#a1a8b5]">{shortDate(log.created_at)}</p></div></div>)}</div>}
             </SectionCard>
           </div>
         </div>

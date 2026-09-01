@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AppShell, SectionCard, StatusPill } from "@/components/app-shell";
+import { API_BASE, money, pretty } from "@/lib/product";
 
 type Scenario = {
   id: string;
@@ -30,56 +31,44 @@ type SimulationResult = {
   policy_guard_reason: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-const money = (paise: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format((paise || 0) / 100);
-
-const pretty = (value?: string | null) =>
-  value
-    ? value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
-    : "—";
-
-function categoryStyle(category: string) {
-  if (category === "customer_fixable") return "bg-blue-50 text-blue-700 border-blue-100";
-  if (category === "transient") return "bg-amber-50 text-amber-700 border-amber-100";
-  if (category === "high_value") return "bg-red-50 text-red-700 border-red-100";
-  return "bg-violet-50 text-violet-700 border-violet-100";
+function categoryTone(category: string): "success" | "warning" | "danger" | "info" | "neutral" {
+  if (category === "customer_fixable") return "info";
+  if (category === "transient") return "warning";
+  if (category === "high_value") return "danger";
+  return "neutral";
 }
 
-function actionStyle(action: string) {
-  if (action === "CREATE_RECOVERY_LINK") return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  if (action === "WAIT_AND_VERIFY") return "bg-amber-50 text-amber-700 border-amber-100";
-  return "bg-red-50 text-red-700 border-red-100";
+function actionTone(action?: string | null): "success" | "warning" | "danger" | "info" | "neutral" {
+  if (action === "CREATE_RECOVERY_LINK") return "success";
+  if (action === "WAIT_AND_VERIFY") return "warning";
+  if (action === "ESCALATE") return "danger";
+  return "neutral";
+}
+
+function Spinner() {
+  return <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />;
 }
 
 export default function SimulatorPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("incorrect_otp");
+  const [selectedId, setSelectedId] = useState("incorrect_otp");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("Loading scenarios…");
+  const [message, setMessage] = useState("Loading recovery scenarios…");
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [history, setHistory] = useState<SimulationResult[]>([]);
 
-  const selected = useMemo(
-    () => scenarios.find((scenario) => scenario.id === selectedId) || scenarios[0],
-    [scenarios, selectedId],
-  );
+  const selected = useMemo(() => scenarios.find((item) => item.id === selectedId) || scenarios[0], [scenarios, selectedId]);
 
   async function loadScenarios() {
     try {
-      const res = await fetch(`${API_BASE}/recovery/demo/scenarios`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Could not load simulator scenarios");
-      const data = (await res.json()) as Scenario[];
+      const response = await fetch(`${API_BASE}/recovery/demo/scenarios`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load scenarios");
+      const data = (await response.json()) as Scenario[];
       setScenarios(data);
       if (data.length && !data.some((item) => item.id === selectedId)) setSelectedId(data[0].id);
-      setMessage(`${data.length} recovery scenarios ready`);
+      setMessage(`${data.length} scenarios available`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not reach backend");
+      setMessage(error instanceof Error ? error.message : "Could not reach recovery service");
     }
   }
 
@@ -87,269 +76,87 @@ export default function SimulatorPage() {
     if (!selected) return;
     setBusy(true);
     setResult(null);
-    setMessage(`Gemini is evaluating ${selected.name}…`);
+    setMessage(`Evaluating ${selected.name}…`);
     try {
-      const res = await fetch(`${API_BASE}/recovery/demo/failure/${selected.id}`, { method: "POST" });
-      const data = (await res.json()) as SimulationResult & { detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Scenario simulation failed");
+      const response = await fetch(`${API_BASE}/recovery/demo/failure/${selected.id}`, { method: "POST" });
+      const data = (await response.json()) as SimulationResult & { detail?: string };
+      if (!response.ok) throw new Error(data.detail || "Scenario failed");
       setResult(data);
-      setHistory((current) => [data, ...current].slice(0, 8));
-      setMessage(`Case #${data.case_id} created and evaluated`);
+      setHistory((current) => [data, ...current].slice(0, 6));
+      setMessage(`Case #${data.case_id} evaluated successfully`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Scenario simulation failed");
+      setMessage(error instanceof Error ? error.message : "Scenario failed");
     } finally {
       setBusy(false);
     }
   }
 
   useEffect(() => {
-    loadScenarios();
+    void loadScenarios();
   }, []);
 
   const matched = result ? result.ai_action === result.expected_behavior : false;
 
   return (
-    <main className="min-h-screen bg-[#f7f8fb] text-[#0b1638]">
-      <header className="border-b border-[#e8ebf3] bg-white">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-[#2f5bff] text-lg font-black text-white">
-              R
-              <span className="absolute -bottom-2 -right-2 h-5 w-5 rounded-full bg-[#89a3ff]/50" />
-            </div>
-            <div>
-              <p className="text-[17px] font-extrabold tracking-tight">RecoverFlow</p>
-              <p className="text-[10px] font-medium text-[#697391]">Simulation Lab · Razorpay Test Mode</p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="rounded-lg border border-[#dfe4ee] bg-white px-4 py-2 text-xs font-extrabold text-[#35405f] shadow-sm hover:bg-[#f8f9fc]"
-          >
-            ← Back to dashboard
-          </Link>
+    <AppShell
+      title="Recovery sandbox"
+      description="Test recovery strategy against realistic Razorpay-style payment failures."
+      actions={<button onClick={() => void loadScenarios()} className="rounded-[9px] border border-[#dfe4ed] bg-white px-3.5 py-2 text-[10px] font-bold text-[#57627a] transition hover:bg-[#f8f9fb]">Refresh scenarios</button>}
+    >
+      <div className="mx-auto max-w-[1320px]">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[11px] border border-[#e4e9f1] bg-white px-4 py-3">
+          <div className="flex items-center gap-2.5"><span className="h-2 w-2 rounded-full bg-emerald-500"/><span className="text-[10px] font-semibold text-[#657087]">{message}</span></div>
+          <div className="text-[9px] font-semibold text-[#9aa2b0]">Synthetic Razorpay-style test data · production AI + policy path</div>
         </div>
-      </header>
 
-      <div className="mx-auto max-w-[1500px] px-6 py-7">
-        <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
-          <div>
-            <div className="inline-flex rounded-md bg-[#edf2ff] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#2f5bff]">
-              Recovery Decision Lab
-            </div>
-            <h1 className="mt-3 text-4xl font-extrabold tracking-[-0.04em] text-[#0b1638]">
-              Test the agent against different payment failures.
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#697391]">
-              Each scenario changes the amount, failure source and payment context. Gemini proposes a bounded response, then the deterministic policy layer decides whether autonomous execution is safe.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-[#dbe4ff] bg-gradient-to-br from-[#eef3ff] to-white p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#5e6c91]">Lab status</p>
-                <p className="mt-1 text-lg font-extrabold">{message}</p>
-              </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-700">AI + policy</span>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <MiniStat label="Scenarios" value={String(scenarios.length)} />
-              <MiniStat label="Run now" value={String(history.length)} />
-              <MiniStat label="Provider" value="Gemini" />
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-          <div className="rounded-2xl border border-[#e4e8f1] bg-white shadow-[0_8px_28px_rgba(31,45,94,0.05)]">
-            <div className="border-b border-[#edf0f5] px-5 py-4">
-              <h2 className="text-base font-extrabold">Choose a failure scenario</h2>
-              <p className="mt-1 text-xs text-[#7b849e]">Purpose-built cases for recovery strategy and safety testing</p>
-            </div>
-
-            <div className="grid gap-3 p-4 md:grid-cols-2">
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
+          <SectionCard className="overflow-hidden">
+            <div className="border-b border-[#edf0f5] px-5 py-4"><h2 className="text-[12px] font-[760] text-[#18233f]">Failure scenarios</h2><p className="mt-1 text-[9px] text-[#9098aa]">Choose a scenario to evaluate how the recovery agent responds.</p></div>
+            <div className="grid gap-2.5 p-4 md:grid-cols-2">
               {scenarios.map((scenario) => {
-                const active = scenario.id === selectedId;
+                const active = selected?.id === scenario.id;
                 return (
-                  <button
-                    key={scenario.id}
-                    type="button"
-                    onClick={() => { setSelectedId(scenario.id); setResult(null); }}
-                    className={`rounded-xl border p-4 text-left transition ${
-                      active
-                        ? "border-[#2f5bff] bg-[#f5f7ff] shadow-[0_0_0_2px_rgba(47,91,255,0.08)]"
-                        : "border-[#e4e8f1] bg-white hover:border-[#cdd6ef] hover:bg-[#fafbfe]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-extrabold text-[#17213f]">{scenario.name}</p>
-                        <p className="mt-1 text-xs leading-5 text-[#6f7894]">{scenario.description}</p>
-                      </div>
-                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-extrabold uppercase ${categoryStyle(scenario.category)}`}>
-                        {pretty(scenario.category)}
-                      </span>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between border-t border-[#eef1f6] pt-3 text-xs">
-                      <div>
-                        <span className="text-[#8a93aa]">Amount </span>
-                        <span className="font-extrabold">{money(scenario.amount)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[#8a93aa]">Expected </span>
-                        <span className="font-extrabold text-[#35405f]">{pretty(scenario.expected_behavior)}</span>
-                      </div>
-                    </div>
+                  <button key={scenario.id} type="button" onClick={() => { setSelectedId(scenario.id); setResult(null); }} className={`rounded-[12px] border p-4 text-left transition-all duration-200 ${active ? "border-[#b9c8ff] bg-[#f5f7ff] shadow-[0_0_0_2px_rgba(47,91,255,.06)]" : "border-[#e5e9f1] bg-white hover:-translate-y-0.5 hover:border-[#d2daea] hover:shadow-[0_8px_20px_rgba(22,34,70,.05)]"}`}>
+                    <div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-[750] text-[#202b48]">{scenario.name}</p><p className="mt-1.5 text-[9px] leading-4 text-[#7c8699]">{scenario.description}</p></div><StatusPill label={pretty(scenario.category)} tone={categoryTone(scenario.category)} /></div>
+                    <div className="mt-4 flex items-center justify-between border-t border-[#eef1f5] pt-3"><div><p className="text-[7px] font-bold uppercase tracking-[.09em] text-[#9ba2b0]">Amount</p><p className="mt-1 text-[10px] font-extrabold text-[#36415b]">{money(scenario.amount)}</p></div><div className="text-right"><p className="text-[7px] font-bold uppercase tracking-[.09em] text-[#9ba2b0]">Expected</p><p className="mt-1 text-[9px] font-bold text-[#59647a]">{pretty(scenario.expected_behavior)}</p></div></div>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </SectionCard>
 
-          <aside className="rounded-2xl border border-[#e4e8f1] bg-white p-5 shadow-[0_8px_28px_rgba(31,45,94,0.05)]">
-            {!selected ? (
-              <p className="text-sm text-[#697391]">Waiting for scenarios…</p>
-            ) : (
+          <SectionCard className="p-5">
+            {!selected ? <div className="py-16 text-center text-[10px] text-[#9098aa]">Loading scenarios…</div> : (
               <>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#2f5bff]">Selected scenario</p>
-                    <h2 className="mt-2 text-2xl font-extrabold">{selected.name}</h2>
-                  </div>
-                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${categoryStyle(selected.category)}`}>
-                    {pretty(selected.category)}
-                  </span>
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <Detail label="Amount" value={money(selected.amount)} />
-                  <Detail label="Method" value={pretty(selected.method)} />
-                  <Detail label="Expected action" value={pretty(selected.expected_behavior)} />
-                  <Detail label="Mode" value="Synthetic test" />
-                </div>
-
-                <div className="mt-4 rounded-xl bg-[#f7f9fd] p-4">
-                  <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#7c86a0]">Why this scenario matters</p>
-                  <p className="mt-2 text-sm leading-6 text-[#4f5a77]">{selected.why_it_matters}</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={runScenario}
-                  disabled={busy}
-                  className="mt-5 w-full rounded-lg bg-[#2f5bff] px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(47,91,255,0.2)] hover:bg-[#244de3] disabled:opacity-50"
-                >
-                  {busy ? "Evaluating…" : `Run ${selected.name}`}
-                </button>
+                <div className="flex items-start justify-between gap-3"><div><p className="text-[8px] font-extrabold uppercase tracking-[.13em] text-[#2f5bff]">Scenario details</p><h2 className="mt-2 text-[20px] font-[760] tracking-[-0.03em] text-[#17213f]">{selected.name}</h2></div><StatusPill label={pretty(selected.category)} tone={categoryTone(selected.category)} /></div>
+                <div className="mt-5 grid grid-cols-2 gap-2.5"><div className="rounded-[10px] bg-[#f8f9fc] p-3"><p className="text-[7px] font-extrabold uppercase tracking-[.09em] text-[#9ba2b0]">Amount</p><p className="mt-1.5 text-[12px] font-extrabold text-[#2d3853]">{money(selected.amount)}</p></div><div className="rounded-[10px] bg-[#f8f9fc] p-3"><p className="text-[7px] font-extrabold uppercase tracking-[.09em] text-[#9ba2b0]">Method</p><p className="mt-1.5 text-[12px] font-extrabold text-[#2d3853]">{pretty(selected.method)}</p></div></div>
+                <div className="mt-3 rounded-[11px] border border-[#e8ebf2] p-3.5"><p className="text-[7px] font-extrabold uppercase tracking-[.09em] text-[#9ba2b0]">Why it matters</p><p className="mt-2 text-[10px] leading-5 text-[#6f7a90]">{selected.why_it_matters}</p></div>
+                <div className="mt-3 flex items-center justify-between rounded-[11px] bg-[#f7f9fd] px-3.5 py-3"><div><p className="text-[7px] font-extrabold uppercase tracking-[.09em] text-[#9ba2b0]">Expected decision</p><p className="mt-1 text-[10px] font-extrabold text-[#39455f]">{pretty(selected.expected_behavior)}</p></div><StatusPill label="Ground truth" tone="info" /></div>
+                <button type="button" onClick={() => void runScenario()} disabled={busy} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#2f5bff] px-4 py-3 text-[10px] font-extrabold text-white shadow-[0_8px_20px_rgba(47,91,255,.20)] transition hover:-translate-y-0.5 hover:bg-[#244fe0] disabled:opacity-50">{busy && <Spinner/>}{busy ? "Evaluating…" : "Evaluate recovery strategy"}</button>
               </>
             )}
-          </aside>
-        </section>
+          </SectionCard>
+        </div>
 
         {result && (
-          <section className="mt-5 rounded-2xl border border-[#e4e8f1] bg-white p-5 shadow-[0_8px_28px_rgba(31,45,94,0.05)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#2f5bff]">Simulation result · Case #{result.case_id}</p>
-                <h2 className="mt-2 text-2xl font-extrabold">{result.scenario_name}</h2>
-                <p className="mt-1 font-mono text-xs text-[#7b849e]">{result.razorpay_payment_id}</p>
-              </div>
-              <span className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${matched ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>
-                {matched ? "✓ Strategy matched expectation" : "Review strategy variance"}
-              </span>
+          <SectionCard className="mt-5 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f5] px-5 py-4"><div><p className="text-[8px] font-extrabold uppercase tracking-[.12em] text-[#2f5bff]">Decision result · Case #{result.case_id}</p><h2 className="mt-1 text-[15px] font-[760] text-[#1b2643]">{result.scenario_name}</h2></div><StatusPill label={matched ? "Strategy matched" : "Strategy variance"} tone={matched ? "success" : "warning"} /></div>
+            <div className="grid gap-0 xl:grid-cols-4">
+              <div className="border-b border-[#edf0f5] p-5 xl:border-b-0 xl:border-r"><p className="text-[8px] font-extrabold uppercase tracking-[.1em] text-[#9ba2b0]">Agent decision</p><div className="mt-3"><StatusPill label={pretty(result.ai_action)} tone={actionTone(result.ai_action)} /></div><p className="mt-3 text-[22px] font-[780] tracking-[-0.04em] text-[#1c2744]">{Math.round(result.confidence * 100)}%</p><p className="mt-1 text-[8px] text-[#949cab]">model confidence</p></div>
+              <div className="border-b border-[#edf0f5] p-5 xl:border-b-0 xl:border-r"><p className="text-[8px] font-extrabold uppercase tracking-[.1em] text-[#9ba2b0]">Expected decision</p><div className="mt-3"><StatusPill label={pretty(result.expected_behavior)} tone={actionTone(result.expected_behavior)} /></div><p className="mt-4 text-[9px] leading-4 text-[#7b8498]">Compared against the labelled synthetic scenario, not exposed to the model during inference.</p></div>
+              <div className="border-b border-[#edf0f5] p-5 xl:border-b-0 xl:border-r"><p className="text-[8px] font-extrabold uppercase tracking-[.1em] text-[#9ba2b0]">Policy guard</p><p className={`mt-3 text-[13px] font-extrabold ${result.policy_guard_allowed ? "text-emerald-700" : "text-[#4f5c74]"}`}>{result.policy_guard_allowed ? "Autonomous action allowed" : "Execution constrained"}</p><p className="mt-2 text-[9px] leading-4 text-[#7d8799]">{result.policy_guard_reason}</p></div>
+              <div className="p-5"><p className="text-[8px] font-extrabold uppercase tracking-[.1em] text-[#9ba2b0]">Planner</p><p className="mt-3 text-[12px] font-extrabold text-[#35405b]">{result.planner_model || pretty(result.planner_source)}</p><p className="mt-2 font-mono text-[8px] text-[#9aa2b0]">{result.razorpay_payment_id}</p><a href="/dashboard" className="mt-4 inline-flex text-[9px] font-extrabold text-[#2f5bff] hover:underline">Open case in console →</a></div>
             </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <ResultCard label="AI action" value={pretty(result.ai_action)} className={actionStyle(result.ai_action)} />
-              <ResultCard label="Expected" value={pretty(result.expected_behavior)} />
-              <ResultCard label="Confidence" value={`${Math.round(result.confidence * 100)}%`} />
-              <ResultCard label="Planner" value={result.planner_model || pretty(result.planner_source)} />
-              <ResultCard label="Policy execution" value={result.policy_guard_allowed ? "Allowed" : "Blocked"} />
-            </div>
-
-            <div className="mt-4 rounded-xl border border-[#e7eaf2] bg-[#fafbfe] px-4 py-3">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#7c86a0]">Deterministic policy guard</p>
-              <p className="mt-1 text-sm font-semibold leading-6 text-[#44506c]">{result.policy_guard_reason}</p>
-            </div>
-          </section>
+          </SectionCard>
         )}
 
-        <section className="mt-5 rounded-2xl border border-[#e4e8f1] bg-white shadow-[0_8px_28px_rgba(31,45,94,0.05)]">
-          <div className="flex items-center justify-between border-b border-[#edf0f5] px-5 py-4">
-            <div>
-              <h2 className="text-base font-extrabold">Session results</h2>
-              <p className="mt-1 text-xs text-[#7b849e]">These runs become the foundation for the benchmark dataset</p>
-            </div>
-            <span className="rounded-full bg-[#edf2ff] px-2.5 py-1 text-[10px] font-extrabold text-[#2f5bff]">{history.length} runs</span>
-          </div>
-
-          {history.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-[#7b849e]">Run a scenario to populate this table.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px] text-left text-xs">
-                <thead className="border-b border-[#edf0f5] bg-[#fafbfe] text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#7d86a0]">
-                  <tr>
-                    <th className="px-5 py-3">Scenario</th>
-                    <th className="px-5 py-3">AI action</th>
-                    <th className="px-5 py-3">Expected</th>
-                    <th className="px-5 py-3">Confidence</th>
-                    <th className="px-5 py-3">Policy</th>
-                    <th className="px-5 py-3">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#eef1f6]">
-                  {history.map((item) => {
-                    const rowMatch = item.ai_action === item.expected_behavior;
-                    return (
-                      <tr key={`${item.case_id}-${item.scenario_id}`} className="text-[#44506c]">
-                        <td className="px-5 py-3 font-extrabold text-[#18213f]">{item.scenario_name}</td>
-                        <td className="px-5 py-3">{pretty(item.ai_action)}</td>
-                        <td className="px-5 py-3">{pretty(item.expected_behavior)}</td>
-                        <td className="px-5 py-3 font-bold">{Math.round(item.confidence * 100)}%</td>
-                        <td className="px-5 py-3">{item.policy_guard_allowed ? "Allowed" : "Blocked"}</td>
-                        <td className="px-5 py-3">
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-extrabold ${rowMatch ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                            {rowMatch ? "Matched" : "Variance"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        {history.length > 0 && (
+          <SectionCard className="mt-5 overflow-hidden">
+            <div className="border-b border-[#edf0f5] px-5 py-3.5"><h2 className="text-[10px] font-extrabold text-[#2d3853]">Recent sandbox runs</h2></div>
+            <div className="divide-y divide-[#eef1f5]">{history.map((item, index) => <div key={`${item.case_id}-${index}`} className="grid grid-cols-[1fr_auto] gap-4 px-5 py-3 sm:grid-cols-[1fr_1fr_auto]"><div><p className="text-[9px] font-bold text-[#3a465f]">{item.scenario_name}</p><p className="mt-1 font-mono text-[7px] text-[#9aa2b0]">Case #{item.case_id}</p></div><div className="hidden items-center gap-2 sm:flex"><StatusPill label={pretty(item.ai_action)} tone={actionTone(item.ai_action)} /><span className="text-[8px] font-bold text-[#788196]">{Math.round(item.confidence * 100)}%</span></div><StatusPill label={item.ai_action === item.expected_behavior ? "Match" : "Review"} tone={item.ai_action === item.expected_behavior ? "success" : "warning"} /></div>)}</div>
+          </SectionCard>
+        )}
       </div>
-    </main>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[#e4e9f5] bg-white px-3 py-3">
-      <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#8a93aa]">{label}</p>
-      <p className="mt-1 text-sm font-extrabold text-[#1a2442]">{value}</p>
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[#e8ebf2] px-3 py-3">
-      <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#8a93aa]">{label}</p>
-      <p className="mt-1 text-sm font-bold text-[#26314f]">{value}</p>
-    </div>
-  );
-}
-
-function ResultCard({ label, value, className = "bg-[#fafbfe] text-[#26314f] border-[#e7eaf2]" }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={`rounded-xl border p-4 ${className}`}>
-      <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] opacity-60">{label}</p>
-      <p className="mt-2 text-sm font-extrabold">{value}</p>
-    </div>
+    </AppShell>
   );
 }

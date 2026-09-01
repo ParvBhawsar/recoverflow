@@ -27,7 +27,7 @@ GET /docs
 | --- | --- | --- |
 | GET | `/recovery/cases` | List latest recovery cases |
 | GET | `/recovery/cases/{case_id}` | Case detail, AI plan, policy guard, actions and audit timeline |
-| GET | `/recovery/summary` | Dashboard recovery metrics |
+| GET | `/recovery/summary` | Recovery metrics |
 | POST | `/recovery/cases/{case_id}/execute` | Execute an approved Razorpay recovery action |
 
 ### Execute recovery
@@ -48,14 +48,16 @@ Possible success fields:
 
 Execution can be rejected with a policy error if the case is unsafe, terminal, over the merchant limit, below the confidence threshold, or over the attempt cap.
 
-## Demo / simulation
+## Recovery sandbox
+
+The product sandbox uses synthetic Razorpay-style failures to exercise the same planner and deterministic policy path as the merchant console.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| GET | `/recovery/demo/scenarios` | List supported demo scenarios |
-| POST | `/recovery/demo/failure` | Create default incorrect-OTP scenario |
-| POST | `/recovery/demo/failure/{scenario_id}` | Create named scenario |
-| POST | `/recovery/cases/{case_id}/demo/original-success` | Demo-only late original success for synthetic cases |
+| GET | `/recovery/demo/scenarios` | List supported sandbox scenarios |
+| POST | `/recovery/demo/failure` | Create the default incorrect-OTP scenario |
+| POST | `/recovery/demo/failure/{scenario_id}` | Create a named synthetic scenario |
+| POST | `/recovery/cases/{case_id}/demo/original-success` | Simulate late original success for synthetic cases |
 
 Supported scenario families include customer-fixable, transient, high-value and ambiguous failures.
 

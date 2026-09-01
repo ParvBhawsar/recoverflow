@@ -101,12 +101,13 @@ if (-not $dataset.synthetic -or $dataset.version -ne 'rf-synth-v1') {
 Pass "Synthetic evaluation dataset responds ($($dataset.summary.total_cases) cases)"
 
 Step 'Frontend routes'
-Check-Page $FrontendUrl 'Dashboard'
-Check-Page "$FrontendUrl/simulator" 'Simulation Lab'
-Check-Page "$FrontendUrl/evaluation" 'Evaluation Dataset'
-Check-Page "$FrontendUrl/benchmark" 'Benchmark Lab'
-Check-Page "$FrontendUrl/analytics/evaluation" 'Evaluation Analytics'
-Check-Page "$FrontendUrl/settings/policy" 'Merchant Safety Rules'
+Check-Page $FrontendUrl 'Product landing page'
+Check-Page "$FrontendUrl/dashboard" 'Merchant recovery console'
+Check-Page "$FrontendUrl/simulator" 'Recovery sandbox'
+Check-Page "$FrontendUrl/analytics/evaluation" 'Evaluation analytics'
+Check-Page "$FrontendUrl/settings/policy" 'Merchant safeguards'
+Check-Page "$FrontendUrl/benchmark" 'Strategy benchmark'
+Check-Page "$FrontendUrl/evaluation" 'Evaluation dataset'
 
 Step 'CORS preflight'
 $headers = @{

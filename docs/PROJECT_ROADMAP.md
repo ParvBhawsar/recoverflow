@@ -4,7 +4,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 
 ## Current progress
 
-**19 / 23 major milestones complete — 83%**
+**21 / 23 major milestones complete — 91%**
 
 ## Completed
 
@@ -27,11 +27,11 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - [x] Persistent evaluation analytics with benchmark history and category-level analysis
 - [x] Merchant Safety Controls with persistent Supabase policy and live runtime enforcement
 - [x] Automated backend unit tests, frontend lint/build validation, and GitHub Actions CI
+- [x] Public Render backend + Vercel frontend + real Razorpay Test Mode signed webhook end-to-end verification
+- [x] Judge-facing Demo Mode command center (`/demo`)
 
 ## Remaining / submission readiness
 
-- [ ] Public backend + frontend deployment and real Razorpay webhook end-to-end verification
-- [ ] Judge-facing demo walkthrough mode
 - [ ] README, architecture diagram, API documentation, and public-repository security cleanup
 - [ ] Final pitch, demo video, and buildathon submission polish
 
@@ -52,6 +52,7 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 - Synthetic dataset explorer: `/evaluation`
 - Benchmark Lab: `/benchmark`
 - Evaluation Analytics: `/analytics/evaluation`
+- Judge Demo Mode: `/demo`
 - Dataset API: `/recovery/evaluation/dataset`
 - Benchmark API: `POST /recovery/evaluation/benchmark`
 - Latest stored benchmark: `GET /recovery/evaluation/benchmark/latest`
@@ -73,13 +74,14 @@ This is the persistent build checklist for RecoverFlow. Update it as milestones 
 ## Quality assets
 
 - Full local diagnostic: `.\scripts\check.ps1`
+- Production smoke test: `.\scripts\smoke-prod.ps1`
 - Backend tests: `backend/tests/`
 - Pytest discovery is isolated to automated tests only.
 - Manual webhook smoke test: `backend/scripts/manual_webhook_test.py`
 - GitHub Actions workflow: `.github/workflows/ci.yml`
 - CI validates backend compile + unit tests, frontend ESLint, and Next.js production build.
-- Latest validated CI run: backend tests passed, frontend lint passed, frontend production build passed.
+- Production webhook path uses signed HMAC verification, event-id idempotency, fast acknowledgement, and background processing.
 
 ## Immediate focus
 
-Deploy RecoverFlow publicly, configure production environment variables, and point Razorpay Test Mode webhooks at the public backend. After the public end-to-end flow is verified, build the judge-facing walkthrough and finish documentation/submission polish.
+Finish submission readiness: tighten the README and architecture/API documentation, run a public-repository security pass, then prepare the final pitch and demo video around the `/demo` judge flow.

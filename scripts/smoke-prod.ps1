@@ -10,6 +10,8 @@ $ErrorActionPreference = 'Stop'
 
 $BackendUrl = $BackendUrl.TrimEnd('/')
 $FrontendUrl = $FrontendUrl.TrimEnd('/')
+$RequestTimeoutSec = 90
+$MaxAttempts = 3
 
 function Step($message) {
     Write-Host "`n== $message ==" -ForegroundColor Cyan
@@ -19,8 +21,34 @@ function Pass($message) {
     Write-Host "[PASS] $message" -ForegroundColor Green
 }
 
+function Invoke-WithRetry($url, $method = 'Get', $headers = $null) {
+    $lastError = $null
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            $params = @{
+                Uri = $url
+                Method = $method
+                UseBasicParsing = $true
+                TimeoutSec = $RequestTimeoutSec
+            }
+            if ($headers) { $params.Headers = $headers }
+
+            return Invoke-WebRequest @params
+        } catch {
+            $lastError = $_
+            if ($attempt -lt $MaxAttempts) {
+                Write-Host "[INFO] Attempt $attempt/$MaxAttempts failed for $url. Render may be waking up; retrying in 5s..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 5
+            }
+        }
+    }
+
+    throw "Request failed after $MaxAttempts attempts: $url`n$($lastError.Exception.Message)"
+}
+
 function Get-Json($url) {
-    $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
+    $response = Invoke-WithRetry $url
     if ($response.StatusCode -ne 200) {
         throw "$url returned HTTP $($response.StatusCode)"
     }
@@ -28,7 +56,7 @@ function Get-Json($url) {
 }
 
 function Check-Page($url, $label) {
-    $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
+    $response = Invoke-WithRetry $url
     if ($response.StatusCode -ne 200) {
         throw "$label returned HTTP $($response.StatusCode): $url"
     }
@@ -38,6 +66,14 @@ function Check-Page($url, $label) {
 Write-Host 'RecoverFlow production smoke test' -ForegroundColor Cyan
 Write-Host "Backend:  $BackendUrl"
 Write-Host "Frontend: $FrontendUrl"
+
+Step 'Wake backend'
+try {
+    $wake = Invoke-WithRetry "$BackendUrl/health/ready"
+    if ($wake.StatusCode -eq 200) { Pass 'Render backend is awake and ready' }
+} catch {
+    throw "Render backend could not become ready. Check Render logs. $($_.Exception.Message)"
+}
 
 Step 'Backend service'
 $root = Get-Json "$BackendUrl/"
@@ -77,7 +113,7 @@ $headers = @{
     Origin = $FrontendUrl
     'Access-Control-Request-Method' = 'GET'
 }
-$cors = Invoke-WebRequest -Uri "$BackendUrl/recovery/summary" -Method Options -Headers $headers -UseBasicParsing -TimeoutSec 30
+$cors = Invoke-WithRetry "$BackendUrl/recovery/summary" 'Options' $headers
 $allowOrigin = $cors.Headers['access-control-allow-origin']
 if ($allowOrigin -ne $FrontendUrl) {
     throw "CORS does not allow frontend origin. Expected '$FrontendUrl', got '$allowOrigin'."

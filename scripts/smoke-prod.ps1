@@ -92,20 +92,24 @@ $policy = Get-Json "$BackendUrl/recovery/policy"
 if (-not $policy.duplicate_charge_protection_enabled) {
     throw 'Duplicate-charge protection invariant is not enabled.'
 }
-Pass 'Merchant safety policy endpoint responds and duplicate protection is enabled'
+Pass 'Merchant safeguard endpoint responds and duplicate protection is enabled'
 
 $dataset = Get-Json "$BackendUrl/recovery/evaluation/dataset"
 if (-not $dataset.synthetic -or $dataset.version -ne 'rf-synth-v1') {
     throw 'Synthetic evaluation dataset is unavailable or unexpected.'
 }
-Pass "Synthetic evaluation dataset responds ($($dataset.summary.total_cases) cases)"
+Pass "Technical evaluation dataset responds ($($dataset.summary.total_cases) cases)"
 
-Step 'Frontend routes'
+Step 'Merchant product routes'
 Check-Page $FrontendUrl 'Product landing page'
-Check-Page "$FrontendUrl/dashboard" 'Merchant recovery console'
-Check-Page "$FrontendUrl/simulator" 'Recovery sandbox'
-Check-Page "$FrontendUrl/analytics/evaluation" 'Evaluation analytics'
+Check-Page "$FrontendUrl/dashboard" 'Recovery overview'
+Check-Page "$FrontendUrl/cases" 'Recovery cases workspace'
+Check-Page "$FrontendUrl/analytics" 'Recovery insights'
 Check-Page "$FrontendUrl/settings/policy" 'Merchant safeguards'
+Check-Page "$FrontendUrl/simulator" 'Test sandbox'
+
+Step 'Technical validation routes'
+Check-Page "$FrontendUrl/analytics/evaluation" 'Model validation'
 Check-Page "$FrontendUrl/benchmark" 'Strategy benchmark'
 Check-Page "$FrontendUrl/evaluation" 'Evaluation dataset'
 

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import LandingExperience from "@/components/landing-experience";
 import "./globals.css";
+import "./landing-performance.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

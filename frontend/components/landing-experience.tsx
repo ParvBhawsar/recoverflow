@@ -22,7 +22,11 @@ export default function LandingExperience() {
             "main > section:not(.hero-glow) > div, main > footer > div"
           )
         )
-      : Array.from(document.querySelectorAll<HTMLElement>("[data-rf-reveal='section']"));
+      : Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".animate-page-in > div > *, .animate-page-in > section"
+          )
+        );
 
     const revealItems = isLanding
       ? Array.from(
@@ -30,7 +34,7 @@ export default function LandingExperience() {
             "#platform .group, #insights .grid > div, figure.group"
           )
         )
-      : Array.from(document.querySelectorAll<HTMLElement>("[data-rf-reveal='card']"));
+      : [];
 
     body.classList.add("rf-site-motion");
     if (isLanding) body.classList.add("rf-landing-active");
@@ -42,7 +46,10 @@ export default function LandingExperience() {
       revealTargets.forEach((element) => element.classList.add("rf-visible"));
       revealItems.forEach((element) => element.classList.add("rf-visible"));
     } else {
-      revealTargets.forEach((element) => element.classList.add("rf-reveal-content"));
+      revealTargets.forEach((element, index) => {
+        element.classList.add("rf-reveal-content");
+        if (!isLanding) element.style.setProperty("--rf-delay", `${Math.min((index % 4) * 40, 120)}ms`);
+      });
       revealItems.forEach((element, index) => {
         element.classList.add("rf-reveal-item");
         element.style.setProperty("--rf-delay", `${Math.min((index % 6) * 45, 225)}ms`);
@@ -164,7 +171,10 @@ export default function LandingExperience() {
         "rf-cursor-pressed"
       );
       darkBand?.classList.remove("rf-dark-band");
-      revealTargets.forEach((element) => element.classList.remove("rf-reveal-content", "rf-visible"));
+      revealTargets.forEach((element) => {
+        element.classList.remove("rf-reveal-content", "rf-visible");
+        element.style.removeProperty("--rf-delay");
+      });
       revealItems.forEach((element) => {
         element.classList.remove("rf-reveal-item", "rf-visible");
         element.style.removeProperty("--rf-delay");

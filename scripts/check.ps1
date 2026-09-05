@@ -71,9 +71,28 @@ $dbPort = [int]((& $python -c "from app.database import DB_PORT; print(DB_PORT)"
 $dbConnected = $false
 $dbOutput = @()
 
+$dbProbe = @'
+from sqlalchemy import text
+from app.database import engine
+
+connection = None
+try:
+    connection = engine.connect()
+    value = connection.execute(text("SELECT 1")).scalar()
+    print(f"SELECT 1 = {value}")
+except Exception as exc:
+    print(f"{type(exc).__name__}: {exc}")
+    raise SystemExit(1)
+finally:
+    if connection is not None:
+        connection.close()
+'@
+
 for ($attempt = 1; $attempt -le 3; $attempt++) {
-    $dbOutput = @(& $python -c "from sqlalchemy import text; from app.database import engine; c=engine.connect(); print('SELECT 1 =', c.execute(text('SELECT 1')).scalar()); c.close()" 2>&1)
-    if ($LASTEXITCODE -eq 0) {
+    $dbOutput = @(& $python -c $dbProbe)
+    $dbExitCode = $LASTEXITCODE
+
+    if ($dbExitCode -eq 0) {
         $dbConnected = $true
         $dbOutput | ForEach-Object { Write-Host $_ }
         if ($attempt -gt 1) {

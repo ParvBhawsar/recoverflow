@@ -153,13 +153,8 @@ export default function Home() {
         <div className="surface-grid absolute inset-0 opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent_80%)]" />
         <div className="soft-orb left-[5%] top-[12%]"/><div className="soft-orb soft-orb-secondary right-[4%] top-[24%]"/>
         <div className="relative mx-auto max-w-[1220px] px-4 pb-20 pt-14 text-center sm:px-5 sm:pb-24 sm:pt-20 md:px-7 md:pb-28 md:pt-24">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#dbe4f6] bg-white/90 px-3.5 py-1.5 text-[8px] font-extrabold uppercase tracking-[0.13em] text-[#50607e] shadow-[0_8px_24px_rgba(47,91,255,.06)] backdrop-blur sm:text-[9px]"><span className="grid h-5 w-5 place-items-center rounded-full bg-[#eef3ff] text-[#2f5bff]"><Spark/></span>AI revenue recovery for Razorpay</div>
-          <h1 className="mx-auto mt-6 max-w-[1040px] text-[clamp(2.75rem,10vw,5.35rem)] font-[800] leading-[.94] tracking-[-0.067em] text-[#0f1933]">Recover failed payments.<br/><span className="text-[#2f5bff]">Know when not to retry.</span></h1>
+          <h1 className="mx-auto max-w-[1040px] text-[clamp(2.75rem,10vw,5.35rem)] font-[800] leading-[.94] tracking-[-0.067em] text-[#0f1933]">Recover failed payments.<br/><span className="text-[#2f5bff]">Know when not to retry.</span></h1>
           <p className="mx-auto mt-6 max-w-[740px] text-[13px] leading-6 text-[#68738c] sm:text-[15px] sm:leading-7 md:text-[17px]">RecoverFlow turns payment failure into a decision: <strong className="font-[760] text-[#293652]">recover, verify, or escalate</strong> — then lets merchant policy decide whether money can move.</p>
-
-          <div className="mx-auto mt-6 flex max-w-[760px] flex-wrap items-center justify-center gap-2">
-            {["Failure-aware diagnosis", "Merchant policy guard", "Late-success protection", "Full audit trail"].map((item, index) => <span key={item} className="rf-hero-chip inline-flex items-center gap-1.5 rounded-full border border-[#dfe5f0] bg-white/82 px-3 py-1.5 text-[8px] font-bold text-[#68758d] shadow-sm backdrop-blur"><span className={`h-1.5 w-1.5 rounded-full ${index === 2 ? "bg-emerald-500" : "bg-[#2f5bff]"}`}/>{item}</span>)}
-          </div>
 
           <div className="mt-8 flex flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center sm:gap-3">
             <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 rounded-[11px] bg-[#2f5bff] px-5 py-3.5 text-[11px] font-bold text-white shadow-[0_14px_32px_rgba(47,91,255,.28)] transition hover:-translate-y-0.5 hover:bg-[#244fe0] sm:text-[12px]">Open recovery console <Arrow /></Link>

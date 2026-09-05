@@ -25,6 +25,13 @@
   filter: none !important;
 }
 
+.rf-landing-active .hero-glow h1 > span:first-child {
+  color: #0f1933 !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+}
+
 .rf-dark-band::before {
   animation: none !important;
   transform: none !important;

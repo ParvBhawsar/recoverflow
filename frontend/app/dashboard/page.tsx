@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, Metric, SectionCard, StatusPill } from "@/components/app-shell";
 import {
@@ -20,14 +21,14 @@ function Spinner() {
 }
 
 function DecisionIcon({ action }: { action?: string | null }) {
-  if (action === "CREATE_RECOVERY_LINK") return <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-emerald-50 text-emerald-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 12h8"/><path d="M12 8v8"/><rect x="4" y="4" width="16" height="16" rx="5"/></svg></span>;
-  if (action === "WAIT_AND_VERIFY") return <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-amber-50 text-amber-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>;
-  return <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-rose-50 text-rose-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 4 3.5 19h17L12 4Z"/><path d="M12 9v4"/><path d="M12 16h.01"/></svg></span>;
+  if (action === "CREATE_RECOVERY_LINK") return <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-emerald-50 text-emerald-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 12h8"/><path d="M12 8v8"/><rect x="4" y="4" width="16" height="16" rx="5"/></svg></span>;
+  if (action === "WAIT_AND_VERIFY") return <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-amber-50 text-amber-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></span>;
+  return <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-rose-50 text-rose-600"><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 4 3.5 19h17L12 4Z"/><path d="M12 9v4"/><path d="M12 16h.01"/></svg></span>;
 }
 
 function EmptyState() {
   return (
-    <div className="grid min-h-[260px] place-items-center px-6 text-center">
+    <div className="grid min-h-[240px] place-items-center px-6 text-center">
       <div>
         <div className="mx-auto grid h-11 w-11 place-items-center rounded-[12px] border border-[#e3e8f1] bg-[#fafbfe] text-[#7e889c]"><svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/></svg></div>
         <p className="mt-4 text-[12px] font-bold text-[#34405a]">No recovery cases yet</p>
@@ -38,7 +39,7 @@ function EmptyState() {
 }
 
 function QueueLoading() {
-  return <div className="divide-y divide-[#eef1f5]">{[0,1,2,3].map((row) => <div key={row} className="grid grid-cols-[1.2fr_1fr_.6fr_.8fr] gap-5 px-5 py-4"><div><div className="skeleton h-3 w-32 rounded"/><div className="skeleton mt-2 h-2 w-16 rounded"/></div><div className="skeleton h-3 w-28 rounded"/><div className="skeleton h-3 w-16 rounded"/><div className="skeleton h-7 w-24 rounded-full"/></div>)}</div>;
+  return <div className="divide-y divide-[#eef1f5]">{[0,1,2,3,4].map((row) => <div key={row} className="grid grid-cols-[minmax(0,1fr)_70px] gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1.35fr)_86px_minmax(110px,.7fr)_auto] sm:items-center md:px-5"><div><div className="skeleton h-3 w-36 rounded"/><div className="skeleton mt-2 h-2 w-28 rounded"/></div><div className="skeleton h-3 w-14 rounded"/><div className="hidden items-center gap-2 sm:flex"><div className="skeleton h-7 w-7 rounded-lg"/><div className="skeleton h-2.5 w-20 rounded"/></div><div className="hidden sm:block"><div className="skeleton h-6 w-20 rounded-full"/></div></div>)}</div>;
 }
 
 function InspectorLoading() {
@@ -153,10 +154,11 @@ export default function DashboardPage() {
     return cases.filter((item) => [item.razorpay_payment_id, item.diagnosis || "", item.status, item.recommended_action || ""].some((field) => field.toLowerCase().includes(normalized)));
   }, [cases, query]);
 
+  const overviewCases = filteredCases.slice(0, 6);
   const recoveredCount = cases.filter((item) => item.status === "RECOVERED").length;
   const canExecute = selected?.status === "ACTION_PROPOSED" && selected.recommended_action === "CREATE_RECOVERY_LINK" && detail?.policy_guard.allowed;
   const canSimulateLate = selected?.status === "WAITING_FOR_CUSTOMER" && selected.razorpay_payment_id.startsWith("pay_demo_");
-  const recentLogs = detail?.audit_logs?.slice(-5).reverse() || [];
+  const recentLogs = detail?.audit_logs?.slice(-4).reverse() || [];
   const hasError = message.toLowerCase().includes("unavailable") || message.toLowerCase().includes("could not") || message.toLowerCase().includes("failed");
 
   return (
@@ -183,39 +185,41 @@ export default function DashboardPage() {
           <Metric loading={!hasLoaded} label="Late-success protected" value={money(summary?.late_success_protected_value || 0)} detail={`${summary?.late_success_protected_cases || 0} duplicate risks stopped`} accent="amber" />
         </div>
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[1.45fr_.75fr]">
-          <SectionCard className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f5] px-4 py-3.5 md:px-5">
-              <div><h2 className="text-[12px] font-[760] text-[#18233f]">Recovery queue</h2><p className="mt-0.5 text-[9px] text-[#9098aa]">Payment failures ordered by latest activity</p></div>
-              <div className="relative w-full sm:w-[240px]"><svg viewBox="0 0 24 24" className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ba3b1]" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payment, diagnosis, status…" className="w-full rounded-[9px] border border-[#e1e5ed] bg-[#fafbfe] py-2 pl-9 pr-3 text-[9px] font-medium text-[#34405c] placeholder:text-[#a9b0bd] focus:bg-white"/></div>
+        <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <SectionCard className="min-w-0 overflow-hidden">
+            <div className="flex flex-col gap-3 border-b border-[#edf0f5] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between md:px-5">
+              <div><div className="flex items-center gap-2"><h2 className="text-[12px] font-[760] text-[#18233f]">Recovery queue</h2><span className="rounded-full bg-[#f0f3f9] px-2 py-1 text-[7px] font-extrabold text-[#7d8798]">Latest 6</span></div><p className="mt-0.5 text-[9px] text-[#9098aa]">Recent payment failures requiring operational attention</p></div>
+              <div className="relative w-full sm:w-[235px]"><svg viewBox="0 0 24 24" className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ba3b1]" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recent cases…" className="w-full rounded-[9px] border border-[#e1e5ed] bg-[#fafbfe] py-2 pl-9 pr-3 text-[9px] font-medium text-[#34405c] placeholder:text-[#a9b0bd] focus:bg-white"/></div>
             </div>
 
-            {!hasLoaded ? <QueueLoading/> : filteredCases.length === 0 ? <EmptyState/> : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left">
-                  <thead className="bg-[#fafbfe] text-[8px] font-extrabold uppercase tracking-[0.08em] text-[#9aa2b1]"><tr><th className="px-5 py-2.5">Payment</th><th className="px-4 py-2.5">Diagnosis</th><th className="px-4 py-2.5">Amount</th><th className="px-4 py-2.5">Decision</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Updated</th></tr></thead>
-                  <tbody className="divide-y divide-[#eef1f5]">
-                    {filteredCases.map((item) => (
-                      <tr key={item.id} onClick={() => { setSelected(item); setRecoveryUrl(null); void loadDetail(item.id); }} className={`cursor-pointer transition ${selected?.id === item.id ? "bg-[#f5f7ff]" : "bg-white hover:bg-[#fafbfe]"}`}>
-                        <td className="px-5 py-3.5"><p className="font-mono text-[9px] font-bold text-[#34405b]">{item.razorpay_payment_id}</p><p className="mt-1 text-[8px] text-[#9aa2b1]">Case #{item.id}</p></td>
-                        <td className="px-4 py-3.5"><p className="max-w-[170px] truncate text-[9px] font-semibold text-[#59647b]">{pretty(item.diagnosis)}</p></td>
-                        <td className="px-4 py-3.5 text-[9px] font-extrabold text-[#25314d]">{money(item.amount)}</td>
-                        <td className="px-4 py-3.5"><div className="flex items-center gap-2"><DecisionIcon action={item.recommended_action}/><span className="max-w-[125px] text-[8px] font-bold text-[#58647b]">{pretty(item.recommended_action)}</span></div></td>
-                        <td className="px-4 py-3.5"><StatusPill label={pretty(item.status)} tone={statusTone(item.status)} /></td>
-                        <td className="px-4 py-3.5 text-[8px] font-semibold text-[#929aad]">{shortDate(item.updated_at || item.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {!hasLoaded ? <QueueLoading/> : overviewCases.length === 0 ? <EmptyState/> : (
+              <div className="divide-y divide-[#eef1f5]">
+                {overviewCases.map((item) => (
+                  <button key={item.id} type="button" onClick={() => { setSelected(item); setRecoveryUrl(null); void loadDetail(item.id); }} className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5 text-left transition sm:grid-cols-[minmax(0,1.35fr)_86px_minmax(118px,.72fr)_auto] md:px-5 ${selected?.id === item.id ? "bg-[#f4f7ff]" : "bg-white hover:bg-[#fafbfe]"}`}>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2"><p className="truncate font-mono text-[9px] font-bold text-[#34405b]">{item.razorpay_payment_id}</p>{selected?.id === item.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2f5bff]"/>}</div>
+                      <p className="mt-1 truncate text-[8px] font-semibold text-[#7b8599]">{pretty(item.diagnosis)}</p>
+                      <p className="mt-1 text-[7px] text-[#a1a8b6]">Case #{item.id} · {shortDate(item.updated_at || item.created_at)}</p>
+                    </div>
+                    <div className="text-right sm:text-left"><p className="text-[9px] font-extrabold text-[#25314d]">{money(item.amount)}</p><div className="mt-1 sm:hidden"><StatusPill label={pretty(item.status)} tone={statusTone(item.status)} /></div></div>
+                    <div className="hidden min-w-0 items-center gap-2 sm:flex"><DecisionIcon action={item.recommended_action}/><span className="min-w-0 text-[8px] font-bold leading-4 text-[#58647b]">{pretty(item.recommended_action)}</span></div>
+                    <div className="hidden sm:block"><StatusPill label={pretty(item.status)} tone={statusTone(item.status)} /></div>
+                  </button>
+                ))}
               </div>
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f5] bg-[#fafbfe] px-4 py-3 md:px-5">
+              <p className="text-[8px] font-medium text-[#939bad]">Showing {Math.min(overviewCases.length, 6)} of {filteredCases.length} matching cases</p>
+              <Link href="/cases" className="inline-flex items-center gap-1.5 text-[8px] font-extrabold text-[#2f5bff] hover:underline">View all recovery cases <span aria-hidden="true">→</span></Link>
+            </div>
           </SectionCard>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5 xl:sticky xl:top-[90px] xl:self-start">
             <SectionCard className="p-5">
               {!hasLoaded ? <InspectorLoading/> : !selected ? <EmptyState/> : (
                 <>
-                  <div className="flex items-start justify-between gap-3"><div><p className="text-[8px] font-extrabold uppercase tracking-[0.13em] text-[#2f5bff]">Case inspector</p><h2 className="mt-1.5 text-[16px] font-[760] tracking-[-0.03em] text-[#17213f]">{pretty(selected.diagnosis)}</h2><p className="mt-1 font-mono text-[8px] text-[#9aa2b0]">{selected.razorpay_payment_id}</p></div><StatusPill label={pretty(selected.status)} tone={statusTone(selected.status)} /></div>
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[8px] font-extrabold uppercase tracking-[0.13em] text-[#2f5bff]">Case inspector</p><h2 className="mt-1.5 text-[16px] font-[760] leading-6 tracking-[-0.03em] text-[#17213f]">{pretty(selected.diagnosis)}</h2><p className="mt-1 truncate font-mono text-[8px] text-[#9aa2b0]">{selected.razorpay_payment_id}</p></div><StatusPill label={pretty(selected.status)} tone={statusTone(selected.status)} /></div>
 
                   <div className="mt-5 grid grid-cols-2 gap-2.5">
                     <div className="rounded-[10px] bg-[#f8f9fc] p-3"><p className="text-[7px] font-extrabold uppercase tracking-[.09em] text-[#9ba2b0]">Amount</p><p className="mt-1.5 text-[13px] font-extrabold text-[#25314c]">{money(selected.amount)}</p></div>
@@ -238,8 +242,8 @@ export default function DashboardPage() {
             </SectionCard>
 
             <SectionCard className="overflow-hidden">
-              <div className="border-b border-[#edf0f5] px-4 py-3"><p className="text-[10px] font-extrabold text-[#28334f]">Recent activity</p></div>
-              {!hasLoaded ? <div className="space-y-3 px-4 py-5"><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/></div> : recentLogs.length === 0 ? <div className="px-4 py-6 text-[9px] text-[#969ead]">Select a case to inspect its audit trail.</div> : <div className="divide-y divide-[#eef1f5]">{recentLogs.map((log) => <div key={log.id} className="flex gap-3 px-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#2f5bff] shadow-[0_0_0_4px_rgba(47,91,255,.08)]"/><div><p className="text-[8px] font-extrabold uppercase tracking-[.07em] text-[#59647b]">{pretty(log.event_type)}</p><p className="mt-1 text-[9px] leading-4 text-[#7e8799]">{log.message}</p><p className="mt-1 text-[7px] font-medium text-[#a1a8b5]">{shortDate(log.created_at)}</p></div></div>)}</div>}
+              <div className="flex items-center justify-between border-b border-[#edf0f5] px-4 py-3"><p className="text-[10px] font-extrabold text-[#28334f]">Recent activity</p><span className="text-[7px] font-bold text-[#9aa2b0]">Latest 4</span></div>
+              {!hasLoaded ? <div className="space-y-3 px-4 py-5"><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/><div className="skeleton h-10 rounded-lg"/></div> : recentLogs.length === 0 ? <div className="px-4 py-6 text-[9px] text-[#969ead]">Select a case to inspect its audit trail.</div> : <div className="divide-y divide-[#eef1f5]">{recentLogs.map((log) => <div key={log.id} className="flex gap-3 px-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#2f5bff] shadow-[0_0_0_4px_rgba(47,91,255,.08)]"/><div className="min-w-0"><p className="text-[8px] font-extrabold uppercase tracking-[.07em] text-[#59647b]">{pretty(log.event_type)}</p><p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[#7e8799]">{log.message}</p><p className="mt-1 text-[7px] font-medium text-[#a1a8b5]">{shortDate(log.created_at)}</p></div></div>)}</div>}
             </SectionCard>
           </div>
         </div>

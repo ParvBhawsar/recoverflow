@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import LandingExperience from "@/components/landing-experience";
 import "./globals.css";
 import "./landing-performance.css";
+import "./production-polish.css";
 
 const inter = Inter({
   variable: "--font-body",

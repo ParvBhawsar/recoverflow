@@ -1,6 +1,21 @@
 /* Lightweight landing interaction layer.
    Motion is intentionally transform/opacity-only and event-throttled. */
 
+@keyframes rf-hero-enter {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes rf-chip-enter {
+  from { opacity: 0; transform: translate3d(0, 7px, 0) scale(.98); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes rf-preview-enter {
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.992); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
 .rf-landing-active .soft-orb {
   animation: none !important;
   filter: blur(10px);
@@ -16,7 +31,15 @@
 }
 
 .rf-landing-active .hero-glow > .relative > div:first-child {
-  animation: none !important;
+  animation: rf-hero-enter .48s cubic-bezier(.2,.75,.2,1) both !important;
+}
+
+.rf-landing-active .hero-glow h1 {
+  animation: rf-hero-enter .58s cubic-bezier(.2,.75,.2,1) .05s both;
+}
+
+.rf-landing-active .hero-glow h1 + p {
+  animation: rf-hero-enter .58s cubic-bezier(.2,.75,.2,1) .11s both;
 }
 
 .rf-landing-active .hero-glow h1 span {
@@ -25,11 +48,37 @@
   filter: none !important;
 }
 
-.rf-landing-active .hero-glow h1 > span:first-child {
-  color: #0f1933 !important;
-  background: none !important;
-  -webkit-background-clip: border-box !important;
-  background-clip: border-box !important;
+.rf-hero-chip {
+  opacity: 0;
+  animation: rf-chip-enter .42s cubic-bezier(.2,.75,.2,1) both;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease !important;
+}
+
+.rf-hero-chip:nth-child(1) { animation-delay: .16s; }
+.rf-hero-chip:nth-child(2) { animation-delay: .21s; }
+.rf-hero-chip:nth-child(3) { animation-delay: .26s; }
+.rf-hero-chip:nth-child(4) { animation-delay: .31s; }
+
+.rf-hero-chip:hover {
+  transform: translate3d(0, -2px, 0);
+  border-color: rgba(47,91,255,.22) !important;
+  box-shadow: 0 8px 20px rgba(36,58,112,.07) !important;
+}
+
+.rf-preview-stage > div:last-child {
+  animation: rf-preview-enter .66s cubic-bezier(.2,.74,.2,1) .22s both;
+}
+
+.rf-preview-stage > .pointer-events-none {
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+
+.rf-preview-stage:hover > .pointer-events-none:nth-of-type(2) {
+  transform: translate3d(-2px, -3px, 0);
+}
+
+.rf-preview-stage:hover > .pointer-events-none:nth-of-type(3) {
+  transform: translate3d(2px, -3px, 0);
 }
 
 .rf-dark-band::before {
@@ -174,6 +223,10 @@
   .rf-landing-active .soft-orb {
     opacity: .52;
   }
+
+  .rf-preview-stage > div:last-child {
+    animation-duration: .45s;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -192,9 +245,15 @@
   }
 
   .rf-reveal-content,
-  .rf-reveal-item {
+  .rf-reveal-item,
+  .rf-hero-chip,
+  .rf-landing-active .hero-glow h1,
+  .rf-landing-active .hero-glow h1 + p,
+  .rf-landing-active .hero-glow > .relative > div:first-child,
+  .rf-preview-stage > div:last-child {
     opacity: 1 !important;
     transform: none !important;
+    animation: none !important;
     transition: none !important;
   }
 }

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Evaluation dataset",
-  description: "Versioned labelled payment-failure scenarios for reproducible recovery-strategy evaluation.",
+  title: "Evaluation dataset · RecoverFlow",
+  description: "Versioned labelled payment-failure scenarios for reproducible recovery-strategy validation.",
+  robots: { index: false, follow: false },
 };
 
 export default function EvaluationLayout({ children }: { children: ReactNode }) {

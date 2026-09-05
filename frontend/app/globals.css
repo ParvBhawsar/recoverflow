@@ -19,35 +19,28 @@
   --font-mono: var(--font-geist-mono);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html {
   scroll-behavior: smooth;
   background: var(--background);
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  min-width: 320px;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-::selection {
-  background: rgba(47, 91, 255, 0.16);
-  color: #152249;
-}
+::selection { background: rgba(47, 91, 255, 0.16); color: #152249; }
 
-button,
-a,
-input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
-}
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { touch-action: manipulation; }
 
 button:focus-visible,
 a:focus-visible,
@@ -58,22 +51,42 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+input, select, textarea { font: inherit; }
+
 .surface-grid {
   background-image:
-    linear-gradient(rgba(28, 44, 85, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(28, 44, 85, 0.035) 1px, transparent 1px);
+    linear-gradient(rgba(28, 44, 85, 0.034) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 44, 85, 0.034) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
 .hero-glow {
   background:
-    radial-gradient(circle at 25% 15%, rgba(77, 112, 255, 0.16), transparent 34%),
-    radial-gradient(circle at 75% 30%, rgba(122, 102, 255, 0.12), transparent 30%),
-    linear-gradient(180deg, #f8faff 0%, #ffffff 72%);
+    radial-gradient(circle at 20% 12%, rgba(71, 107, 255, 0.17), transparent 31%),
+    radial-gradient(circle at 78% 24%, rgba(119, 100, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f8faff 0%, #ffffff 74%);
+}
+
+.soft-orb {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(47,91,255,.14) 0%, rgba(47,91,255,.03) 46%, transparent 72%);
+  filter: blur(6px);
+  animation: orbit-soft 11s ease-in-out infinite alternate;
+}
+
+.soft-orb-secondary {
+  width: 230px;
+  height: 230px;
+  background: radial-gradient(circle, rgba(111,85,255,.11) 0%, rgba(111,85,255,.025) 48%, transparent 72%);
+  animation-delay: -4s;
 }
 
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(7px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -82,9 +95,9 @@ textarea:focus-visible {
   50% { transform: translateY(-5px); }
 }
 
-@keyframes pulse-soft {
-  0%, 100% { opacity: .7; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.04); }
+@keyframes orbit-soft {
+  0% { transform: translate3d(-8px, 0, 0) scale(.98); opacity: .78; }
+  100% { transform: translate3d(10px, 9px, 0) scale(1.04); opacity: 1; }
 }
 
 @keyframes shimmer {
@@ -92,18 +105,35 @@ textarea:focus-visible {
   100% { background-position: -120% 0; }
 }
 
-.animate-page-in {
-  animation: page-in .36s cubic-bezier(.2,.75,.25,1) both;
+@keyframes status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.12); }
+  50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
 }
 
-.animate-float-soft {
-  animation: float-soft 5.5s ease-in-out infinite;
-}
+.animate-page-in { animation: page-in .36s cubic-bezier(.2,.75,.25,1) both; }
+.animate-float-soft { animation: float-soft 5.5s ease-in-out infinite; }
+.animate-status-pulse { animation: status-pulse 2.5s ease-in-out infinite; }
 
 .skeleton {
   background: linear-gradient(90deg, #f1f3f7 25%, #f8f9fb 37%, #f1f3f7 63%);
   background-size: 300% 100%;
   animation: shimmer 1.6s linear infinite;
+}
+
+.premium-surface {
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(252,253,255,.96));
+  border: 1px solid rgba(222,227,237,.92);
+  box-shadow: 0 10px 32px rgba(25,38,76,.045), inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+@media (max-width: 639px) {
+  .animate-float-soft { animation: none; }
+  .surface-grid { background-size: 26px 26px; }
+  .soft-orb { width: 190px; height: 190px; }
+  .soft-orb-secondary { width: 160px; height: 160px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

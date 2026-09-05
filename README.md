@@ -74,6 +74,22 @@ These are deliberately kept out of the primary merchant navigation and are inten
 - Automated backend tests + frontend lint/build GitHub Actions CI.
 - Public deployment on Vercel + Render + Supabase.
 
+## Product experience
+
+The merchant UI is intentionally separated from model-validation and engineering surfaces. Primary navigation stays focused on **Overview → Recovery Cases → Insights → Safeguards**, with the sandbox kept as a secondary Test Mode tool.
+
+The final visual system uses:
+
+- **Plus Jakarta Sans** for product/marketing display hierarchy,
+- **Inter** for operational UI and body text,
+- **JetBrains Mono** for payment IDs and technical identifiers,
+- responsive desktop sidebar + mobile bottom navigation,
+- truthful cold-start skeletons instead of temporary fake zero values,
+- subtle motion with reduced-motion support,
+- restrained cobalt/navy/white surfaces rather than generic AI-dashboard gradients.
+
+The landing hero includes illustrative real-world merchant context from Bengaluru, India. Photography is sourced from Pexels under the Pexels license and is not presented as an actual RecoverFlow customer, partner, or endorsement. Source: https://www.pexels.com/photo/men-at-a-stand-in-a-mall-21751094/ (SRIPADA STUDIOS).
+
 ## Architecture
 
 ```mermaid
@@ -122,6 +138,8 @@ All benchmark results are explicitly synthetic and are not represented as produc
 - React 19
 - TypeScript
 - Tailwind CSS 4
+- Plus Jakarta Sans + Inter + JetBrains Mono
+- Next.js Image / Pexels illustrative photography
 - Vercel
 
 ### Backend

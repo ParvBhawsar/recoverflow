@@ -1,0 +1,109 @@
+/* Final production polish: premium type hierarchy + contextual merchant photography. */
+
+:root {
+  --rf-font-body: var(--font-body), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rf-font-display: var(--font-display), var(--rf-font-body);
+  --rf-font-mono: var(--font-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+body {
+  font-family: var(--rf-font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
+  font-family: var(--rf-font-display);
+}
+
+.font-mono,
+code,
+kbd,
+samp {
+  font-family: var(--rf-font-mono) !important;
+}
+
+/* Jakarta is wider and more expressive than Geist; this keeps hero spacing elegant. */
+.rf-landing-active .hero-glow h1 {
+  letter-spacing: -0.055em !important;
+}
+
+.rf-landing-active .hero-glow h1,
+.rf-landing-active #platform h2,
+.rf-landing-active #safety h2,
+.rf-landing-active #insights h2 {
+  font-family: var(--rf-font-display);
+}
+
+/* Use authentic Bengaluru merchant context as a quiet visual layer, not a stock-photo billboard. */
+@media (min-width: 1024px) {
+  .rf-landing-active .hero-glow {
+    background-image:
+      linear-gradient(90deg, rgba(247,249,255,.99) 0%, rgba(247,249,255,.96) 36%, rgba(247,249,255,.84) 52%, rgba(247,249,255,.48) 68%, rgba(255,255,255,.82) 100%),
+      linear-gradient(180deg, rgba(248,250,255,.2) 0%, rgba(255,255,255,.72) 62%, #ffffff 100%),
+      url("https://images.pexels.com/photos/21751094/pexels-photo-21751094/free-photo-of-men-at-a-stand-in-a-mall.jpeg?auto=compress&cs=tinysrgb&w=1600"),
+      radial-gradient(circle at 18% 10%, rgba(59,96,255,.22), transparent 30%),
+      radial-gradient(circle at 80% 22%, rgba(116,83,255,.14), transparent 29%),
+      radial-gradient(circle at 50% 68%, rgba(47,91,255,.055), transparent 37%),
+      linear-gradient(180deg, #f7f9ff 0%, #ffffff 76%);
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% 100%, 54% 58%, auto, auto, auto, auto;
+    background-position: center, center, 112% 9%, center, center, center, center;
+  }
+
+  .rf-landing-active .hero-glow > .relative {
+    text-shadow: 0 1px 0 rgba(255,255,255,.55);
+  }
+
+  .rf-landing-active .hero-glow > .relative::after {
+    content: "";
+    position: absolute;
+    right: 3.5%;
+    top: 70px;
+    width: 30%;
+    height: 260px;
+    border-radius: 38% 62% 58% 42% / 48% 42% 58% 52%;
+    border: 1px solid rgba(255,255,255,.72);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 24px 80px rgba(37,53,92,.08);
+    pointer-events: none;
+    opacity: .72;
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, rgba(0,0,0,.82) 58%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 0%, rgba(0,0,0,.82) 58%, transparent 100%);
+  }
+}
+
+/* Keep mobile focused, fast and uncluttered. */
+@media (max-width: 1023px) {
+  .rf-landing-active .hero-glow {
+    background:
+      radial-gradient(circle at 18% 10%, rgba(59,96,255,.18), transparent 30%),
+      radial-gradient(circle at 80% 22%, rgba(116,83,255,.10), transparent 29%),
+      linear-gradient(180deg, #f7f9ff 0%, #ffffff 76%);
+  }
+}
+
+/* More deliberate product surfaces: quiet depth instead of exaggerated glassmorphism. */
+.rf-landing-active .premium-surface,
+.rf-landing-active .rf-preview-stage > div:last-child {
+  backdrop-filter: saturate(108%);
+}
+
+.rf-landing-active main section:not(.hero-glow) h2,
+.rf-landing-active main section:not(.hero-glow) h3 {
+  text-wrap: balance;
+}
+
+.rf-landing-active main p {
+  text-wrap: pretty;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-landing-active .hero-glow {
+    background-attachment: scroll;
+  }
+}

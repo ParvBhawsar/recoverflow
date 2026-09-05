@@ -2,7 +2,7 @@
 
 **AI-assisted revenue recovery for failed Razorpay payments — without blind retries.**
 
-RecoverFlow is a merchant-side recovery control plane that diagnoses failed payments, proposes a bounded next action with Gemini, enforces deterministic merchant safeguards, executes recovery through Razorpay Payment Links, and stops collection when an original payment succeeds late.
+RecoverFlow is a merchant-side recovery control plane that diagnoses failed payments, proposes a bounded next action with AI, enforces deterministic merchant safeguards, executes recovery through Razorpay Payment Links, and stops collection when an original payment succeeds late.
 
 > **AI proposes. Policy decides. Razorpay executes.**
 
@@ -10,6 +10,8 @@ RecoverFlow is a merchant-side recovery control plane that diagnoses failed paym
 
 - Product: https://recoverflow-kohl.vercel.app
 - Merchant console: https://recoverflow-kohl.vercel.app/dashboard
+- Recovery cases: https://recoverflow-kohl.vercel.app/cases
+- Recovery insights: https://recoverflow-kohl.vercel.app/analytics
 - API: https://recoverflow-api-ul43.onrender.com
 - Swagger: https://recoverflow-api-ul43.onrender.com/docs
 
@@ -31,24 +33,33 @@ Treating every failure as a retry opportunity creates unnecessary collection att
 2. `WAIT_AND_VERIFY` — for transient or uncertain payment states,
 3. `ESCALATE` — for ambiguous, suspicious, high-value or policy-sensitive cases.
 
-## Product surfaces
+## Merchant product surfaces
 
 | Route | Purpose |
 | --- | --- |
 | `/` | Product landing page |
-| `/dashboard` | Recovery operations console |
-| `/simulator` | Recovery sandbox |
-| `/analytics/evaluation` | Evaluation analytics |
+| `/dashboard` | Merchant recovery overview |
+| `/cases` | Full recovery-case workspace |
+| `/analytics` | Live recovery performance and failure insights |
 | `/settings/policy` | Merchant safeguards |
-| `/benchmark` | Strategy benchmark |
-| `/evaluation` | Labelled synthetic dataset |
+| `/simulator` | Test-mode recovery sandbox |
+
+### Technical validation surfaces
+
+These are deliberately kept out of the primary merchant navigation and are intended for engineering/review workflows:
+
+| Route | Purpose |
+| --- | --- |
+| `/analytics/evaluation` | Synthetic model-validation analytics |
+| `/benchmark` | Strategy benchmark vs blind retry |
+| `/evaluation` | Labelled synthetic evaluation dataset |
 
 ## Core capabilities
 
 - Signed Razorpay webhook verification with raw-body HMAC SHA-256.
 - Event-id idempotency using `X-Razorpay-Event-Id`.
 - Fast webhook acknowledgement with background processing.
-- Gemini structured recovery planning.
+- Structured AI recovery planning.
 - Deterministic fallback when AI is unavailable.
 - Merchant-configurable amount, confidence and attempt limits.
 - Real Razorpay Test Mode Payment Link creation.
@@ -69,7 +80,7 @@ Treating every failure as a retry opportunity creates unnecessary collection att
 flowchart LR
     RZ[Razorpay Test Mode] -->|signed webhooks| API[FastAPI / Render]
     API -->|persist state + audit| DB[(Supabase PostgreSQL)]
-    API -->|failure context| AI[Gemini Planner]
+    API -->|failure context| AI[AI Recovery Planner]
     AI -->|proposed action| GUARD[Merchant Policy Guard]
     GUARD -->|approved bounded action| EXEC[Razorpay Executor]
     EXEC -->|Payment Link API| RZ
@@ -88,7 +99,7 @@ Model reasoning is deliberately separated from money-moving execution.
 Before an autonomous recovery link can be created, RecoverFlow independently checks:
 
 - merchant-configured maximum autonomous amount,
-- minimum AI confidence,
+- minimum model confidence,
 - maximum autonomous recovery attempts,
 - whether Payment Link creation is enabled,
 - terminal case state,
@@ -98,26 +109,9 @@ Before an autonomous recovery link can be created, RecoverFlow independently che
 
 ## Evaluation
 
-RecoverFlow includes `rf-synth-v1`, a versioned synthetic benchmark containing 30 labelled Razorpay-style payment failures across:
+RecoverFlow includes `rf-synth-v1`, a versioned synthetic benchmark containing 30 labelled Razorpay-style payment failures across customer-fixable failures, transient bank/gateway failures, ambiguous states, high-value boundary cases, suspicious retry patterns, and late-success-sensitive cases.
 
-- customer-fixable failures,
-- transient bank/gateway failures,
-- ambiguous states,
-- high-value boundary cases,
-- suspicious retry patterns,
-- late-success-sensitive cases.
-
-Ground-truth labels are withheld from Gemini during benchmark inference. The same cases are compared against a deliberately naive baseline that opens a recovery path for every failure.
-
-Reported metrics include:
-
-- decision accuracy,
-- autonomous-action precision,
-- unsafe collection attempts,
-- duplicate-risk exposures,
-- high-value autonomous attempts,
-- recovery-opportunity capture,
-- safe-deferral accuracy.
+Ground-truth labels are withheld during model inference. The same cases are compared against a deliberately naive baseline that opens a recovery path for every failure.
 
 All benchmark results are explicitly synthetic and are not represented as production merchant performance.
 
@@ -147,40 +141,16 @@ All benchmark results are explicitly synthetic and are not represented as produc
 
 ## Local development
 
-### 1. Clone
-
 ```powershell
 git clone https://github.com/ParvBhawsar/recoverflow.git
 cd recoverflow
 ```
 
-### 2. Configure backend
-
-Copy:
-
-```text
-backend/.env.example -> backend/.env
-```
-
-Fill your own Supabase, Razorpay Test Mode and Gemini values. Never commit real secrets.
-
-### 3. Install
+Copy `backend/.env.example` to `backend/.env`, add your own Supabase/Razorpay Test Mode/Gemini credentials, then run:
 
 ```powershell
 .\scripts\setup.ps1
-```
-
-### 4. Validate
-
-```powershell
 .\scripts\check.ps1
-```
-
-This validates backend imports, automated tests, Supabase connectivity, frontend ESLint and a Next.js production build.
-
-### 5. Run
-
-```powershell
 .\scripts\dev.ps1
 ```
 
@@ -188,6 +158,8 @@ Local endpoints:
 
 - Product: http://localhost:3000
 - Merchant console: http://localhost:3000/dashboard
+- Recovery cases: http://localhost:3000/cases
+- Recovery insights: http://localhost:3000/analytics
 - API: http://127.0.0.1:8000
 - Swagger: http://127.0.0.1:8000/docs
 - Readiness: http://127.0.0.1:8000/health/ready
@@ -209,11 +181,7 @@ RecoverFlow listens for:
 - `payment.captured`
 - `payment_link.paid`
 
-Webhook endpoint:
-
-```text
-POST /webhooks/razorpay
-```
+Webhook endpoint: `POST /webhooks/razorpay`
 
 API reference: [`docs/API.md`](docs/API.md)
 

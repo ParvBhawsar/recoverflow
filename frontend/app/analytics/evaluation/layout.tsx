@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Evaluation analytics",
-  description: "Measure recovery strategy accuracy and safety against a blind-retry baseline.",
+  title: "Model validation · RecoverFlow",
+  description: "Synthetic technical validation for RecoverFlow recovery strategy accuracy and safety.",
+  robots: { index: false, follow: false },
 };
 
-export default function AnalyticsLayout({ children }: { children: ReactNode }) {
+export default function AnalyticsEvaluationLayout({ children }: { children: ReactNode }) {
   return children;
 }

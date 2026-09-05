@@ -38,18 +38,6 @@ function ProductPreview() {
     <div className="rf-preview-stage relative mx-auto w-full max-w-[980px] animate-float-soft">
       <div className="absolute -inset-10 -z-10 rounded-[48px] bg-[radial-gradient(circle_at_center,rgba(47,91,255,.18),rgba(96,74,255,.06)_40%,transparent_72%)] blur-2xl" />
 
-      <div className="pointer-events-none absolute -left-3 top-[29%] z-20 hidden rounded-[13px] border border-[#dfe6f4] bg-white/95 px-3.5 py-3 shadow-[0_14px_42px_rgba(21,35,76,.13)] backdrop-blur lg:block">
-        <p className="text-[7px] font-extrabold uppercase tracking-[.12em] text-[#9aa3b4]">Failure context</p>
-        <div className="mt-1.5 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-amber-400"/><span className="text-[10px] font-extrabold text-[#25314d]">Incorrect OTP</span></div>
-        <p className="mt-1 text-[8px] font-semibold text-[#929bad]">Customer-fixable · ₹4,999</p>
-      </div>
-
-      <div className="pointer-events-none absolute -right-4 bottom-[17%] z-20 hidden rounded-[13px] border border-emerald-100 bg-[#10233b]/96 px-3.5 py-3 text-white shadow-[0_16px_46px_rgba(13,28,54,.22)] backdrop-blur lg:block">
-        <p className="text-[7px] font-extrabold uppercase tracking-[.12em] text-[#8de3c0]">Guardrail result</p>
-        <p className="mt-1.5 text-[10px] font-extrabold">Policy approved</p>
-        <p className="mt-1 text-[8px] text-[#b9c7d8]">Bounded action · 92% confidence</p>
-      </div>
-
       <div className="overflow-hidden rounded-[20px] border border-[#dbe3f0] bg-white shadow-[0_38px_110px_rgba(24,41,84,.18)] sm:rounded-[24px]">
         <div className="flex items-center gap-2 border-b border-[#edf0f5] bg-[#fbfcfe] px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex gap-1.5"><span className="h-2 w-2 rounded-full bg-[#d9dee8]"/><span className="h-2 w-2 rounded-full bg-[#d9dee8]"/><span className="h-2 w-2 rounded-full bg-[#d9dee8]"/></div>

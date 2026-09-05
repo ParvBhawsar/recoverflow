@@ -45,14 +45,11 @@ The product uses a restrained payments-operations visual system rather than a ge
 - responsive bottom navigation for mobile merchant workflows
 - reduced-motion support and cold-start skeleton states
 
-The landing hero includes an illustrative real-world merchant photograph from Bengaluru, India, sourced from Pexels and used under the Pexels license:
+The first-fold hero is intentionally **photo-free**. It uses a very light ivory/ice-blue full-bleed canvas, faint cobalt/violet haze and a low-contrast editorial grid so the product message remains dominant.
 
-- Source page: `https://www.pexels.com/photo/men-at-a-stand-in-a-mall-21751094/`
-- Photographer: SRIPADA STUDIOS
+Illustrative business photography is used only in the lower commerce-story section, where it supports the narrative without competing with the headline. Those photos are sourced from Pexels under the Pexels license and are not presented as RecoverFlow customers, partners or endorsers.
 
-The people pictured are illustrative and are not presented as RecoverFlow customers, partners, or endorsers. Merchant photography is intentionally hidden from the mobile hero to keep the first fold focused and lightweight.
-
-Other landing photography is also sourced from Pexels. Remote image delivery is restricted in `next.config.ts` to `images.pexels.com/photos/**`.
+Remote image delivery is restricted in `next.config.ts` to `images.pexels.com/photos/**`.
 
 ## Environment
 

@@ -88,7 +88,7 @@ The final visual system uses:
 - subtle motion with reduced-motion support,
 - restrained cobalt/navy/white surfaces rather than generic AI-dashboard gradients.
 
-The landing hero includes illustrative real-world merchant context from Bengaluru, India. Photography is sourced from Pexels under the Pexels license and is not presented as an actual RecoverFlow customer, partner, or endorsement. Source: https://www.pexels.com/photo/men-at-a-stand-in-a-mall-21751094/ (SRIPADA STUDIOS).
+The first-fold landing hero is intentionally **photo-free** so the product message stays dominant. It uses a very light ivory/ice-blue full-bleed background, faint cobalt/violet atmospheric haze and a low-contrast editorial grid. Illustrative business photography appears only in the lower commerce-story section, where it supports context without competing with the headline. Those images are sourced from Pexels under the Pexels license and are not presented as actual RecoverFlow customers, partners or endorsements.
 
 ## Architecture
 

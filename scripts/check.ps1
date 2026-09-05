@@ -112,6 +112,10 @@ try {
 Write-Host ''
 Write-Host 'All mandatory RecoverFlow checks passed.' -ForegroundColor Green
 Write-Host 'Start app: .\scripts\dev.ps1'
-Write-Host 'Dashboard: http://localhost:3000'
+Write-Host 'Product: http://localhost:3000'
+Write-Host 'Merchant overview: http://localhost:3000/dashboard'
+Write-Host 'Recovery cases: http://localhost:3000/cases'
+Write-Host 'Recovery insights: http://localhost:3000/analytics'
+Write-Host 'Merchant safeguards: http://localhost:3000/settings/policy'
 Write-Host 'API docs: http://127.0.0.1:8000/docs'
 Write-Host 'Readiness: http://127.0.0.1:8000/health/ready'

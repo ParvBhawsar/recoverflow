@@ -18,7 +18,7 @@ Write-Host "Repo: $root"
 
 Step 'Prerequisites'
 if (-not (Test-Path $python)) {
-    throw '.Python venv missing. Run .\scripts\setup.ps1 first.'
+    throw 'Python venv missing. Run .\scripts\setup.ps1 first.'
 }
 Pass 'Python venv found'
 

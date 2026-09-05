@@ -31,6 +31,12 @@ These routes remain available for technical review, separate from the primary me
 
 Synthetic benchmark results are not production merchant performance. Navigation placement and `noindex` metadata are not access controls.
 
+## Visual assets
+
+The landing page combines product UI with illustrative real-world business photography sourced from Pexels. The selected photos are used under the Pexels license, are optimized through Next.js Image, and are not presented as actual RecoverFlow customers or endorsements.
+
+Remote image delivery is restricted in `next.config.ts` to `images.pexels.com/photos/**`.
+
 ## Environment
 
 Create `frontend/.env.local` for local development:

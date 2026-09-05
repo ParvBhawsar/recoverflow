@@ -10,24 +10,30 @@ export default function LandingExperience() {
   const dotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (pathname !== "/") return;
-
     const body = document.body;
+    const isLanding = pathname === "/";
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const finePointer = window.matchMedia("(pointer: fine) and (hover: hover)").matches;
-    const darkBand = document.querySelector<HTMLElement>("main > section:nth-of-type(2)");
-    const revealTargets = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        "main > section:not(.hero-glow) > div, main > footer > div"
-      )
-    );
-    const revealItems = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        "#platform .group, #insights .grid > div, figure.group"
-      )
-    );
+    const darkBand = isLanding ? document.querySelector<HTMLElement>("main > section:nth-of-type(2)") : null;
 
-    body.classList.add("rf-landing-active");
+    const revealTargets = isLanding
+      ? Array.from(
+          document.querySelectorAll<HTMLElement>(
+            "main > section:not(.hero-glow) > div, main > footer > div"
+          )
+        )
+      : Array.from(document.querySelectorAll<HTMLElement>("[data-rf-reveal='section']"));
+
+    const revealItems = isLanding
+      ? Array.from(
+          document.querySelectorAll<HTMLElement>(
+            "#platform .group, #insights .grid > div, figure.group"
+          )
+        )
+      : Array.from(document.querySelectorAll<HTMLElement>("[data-rf-reveal='card']"));
+
+    body.classList.add("rf-site-motion");
+    if (isLanding) body.classList.add("rf-landing-active");
     darkBand?.classList.add("rf-dark-band");
 
     let observer: IntersectionObserver | null = null;
@@ -39,7 +45,7 @@ export default function LandingExperience() {
       revealTargets.forEach((element) => element.classList.add("rf-reveal-content"));
       revealItems.forEach((element, index) => {
         element.classList.add("rf-reveal-item");
-        element.style.setProperty("--rf-delay", `${Math.min(index * 35, 140)}ms`);
+        element.style.setProperty("--rf-delay", `${Math.min((index % 6) * 45, 225)}ms`);
       });
 
       observer = new IntersectionObserver(
@@ -50,7 +56,7 @@ export default function LandingExperience() {
             observer?.unobserve(entry.target);
           });
         },
-        { threshold: 0.06, rootMargin: "0px 0px -2% 0px" }
+        { threshold: 0.08, rootMargin: "0px 0px -7% 0px" }
       );
 
       revealTargets.forEach((element) => observer?.observe(element));
@@ -97,7 +103,7 @@ export default function LandingExperience() {
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (!finePointer || event.pointerType === "touch") return;
+      if (!isLanding || !finePointer || event.pointerType === "touch") return;
       pointerX = event.clientX;
       pointerY = event.clientY;
       body.classList.add("rf-cursor-ready");
@@ -105,7 +111,7 @@ export default function LandingExperience() {
     };
 
     const onPointerOver = (event: PointerEvent) => {
-      if (!finePointer) return;
+      if (!isLanding || !finePointer) return;
       const target = event.target as Element | null;
       if (target?.closest("a, button, [role='button'], input, select")) {
         body.classList.add("rf-cursor-engaged");
@@ -113,7 +119,7 @@ export default function LandingExperience() {
     };
 
     const onPointerOut = (event: PointerEvent) => {
-      if (!finePointer) return;
+      if (!isLanding || !finePointer) return;
       const from = event.target as Element | null;
       const to = event.relatedTarget as Element | null;
       if (
@@ -124,11 +130,11 @@ export default function LandingExperience() {
       }
     };
 
-    const onPointerDown = () => finePointer && body.classList.add("rf-cursor-pressed");
+    const onPointerDown = () => isLanding && finePointer && body.classList.add("rf-cursor-pressed");
     const onPointerUp = () => body.classList.remove("rf-cursor-pressed");
     const onWindowBlur = () => body.classList.remove("rf-cursor-ready", "rf-cursor-engaged", "rf-cursor-pressed");
 
-    if (finePointer && !reducedMotion) {
+    if (isLanding && finePointer && !reducedMotion) {
       window.addEventListener("pointermove", onPointerMove, { passive: true });
       document.addEventListener("pointerover", onPointerOver, { passive: true });
       document.addEventListener("pointerout", onPointerOut, { passive: true });
@@ -150,6 +156,7 @@ export default function LandingExperience() {
       if (cursorFrame) window.cancelAnimationFrame(cursorFrame);
       observer?.disconnect();
       body.classList.remove(
+        "rf-site-motion",
         "rf-landing-active",
         "rf-scrolled",
         "rf-cursor-ready",
@@ -165,13 +172,15 @@ export default function LandingExperience() {
     };
   }, [pathname]);
 
-  if (pathname !== "/") return null;
-
   return (
     <>
       <div ref={progressRef} className="rf-scroll-progress" aria-hidden="true" />
-      <div ref={haloRef} className="rf-cursor-halo" aria-hidden="true" />
-      <div ref={dotRef} className="rf-cursor-dot" aria-hidden="true" />
+      {pathname === "/" && (
+        <>
+          <div ref={haloRef} className="rf-cursor-halo" aria-hidden="true" />
+          <div ref={dotRef} className="rf-cursor-dot" aria-hidden="true" />
+        </>
+      )}
     </>
   );
 }

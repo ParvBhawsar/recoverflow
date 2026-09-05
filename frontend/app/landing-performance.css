@@ -1,5 +1,10 @@
-/* Lightweight landing interaction layer.
-   Motion is intentionally transform/opacity-only and event-throttled. */
+/* RecoverFlow motion layer.
+   Motion stays transform/opacity-only where possible and respects reduced motion. */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+}
 
 @keyframes rf-hero-enter {
   from { opacity: 0; transform: translate3d(0, 14px, 0); }
@@ -14,6 +19,31 @@
 @keyframes rf-preview-enter {
   from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.992); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.rf-site-motion header {
+  transition: border-color .28s ease, background-color .28s ease, box-shadow .28s ease, backdrop-filter .28s ease;
+}
+
+body.rf-scrolled > main > header,
+body.rf-scrolled header.sticky {
+  box-shadow: 0 10px 34px rgba(18, 30, 62, .065);
+  border-color: rgba(215, 222, 235, .92) !important;
+}
+
+.rf-site-motion .animate-page-in button,
+.rf-site-motion .animate-page-in a,
+.rf-site-motion .animate-page-in input,
+.rf-site-motion .animate-page-in select,
+.rf-site-motion .animate-page-in [role="button"] {
+  transition-timing-function: cubic-bezier(.2, .72, .2, 1) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rf-site-motion .animate-page-in button:not(:disabled):active,
+  .rf-site-motion .animate-page-in [role="button"]:active {
+    transform: scale(.985);
+  }
 }
 
 .rf-landing-active .soft-orb {
@@ -67,18 +97,14 @@
 
 .rf-preview-stage > div:last-child {
   animation: rf-preview-enter .66s cubic-bezier(.2,.74,.2,1) .22s both;
+  transition: transform .3s cubic-bezier(.2,.72,.2,1), box-shadow .3s ease;
 }
 
-.rf-preview-stage > .pointer-events-none {
-  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-}
-
-.rf-preview-stage:hover > .pointer-events-none:nth-of-type(2) {
-  transform: translate3d(-2px, -3px, 0);
-}
-
-.rf-preview-stage:hover > .pointer-events-none:nth-of-type(3) {
-  transform: translate3d(2px, -3px, 0);
+@media (hover: hover) and (pointer: fine) {
+  .rf-preview-stage:hover > div:last-child {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: 0 42px 120px rgba(24,41,84,.19);
+  }
 }
 
 .rf-dark-band::before {
@@ -96,41 +122,49 @@
 
 .rf-reveal-content {
   opacity: 0;
-  transform: translate3d(0, 16px, 0);
+  transform: translate3d(0, 18px, 0) scale(.997);
   transition:
-    opacity .5s cubic-bezier(.2,.72,.2,1),
-    transform .5s cubic-bezier(.2,.72,.2,1) !important;
-  will-change: auto !important;
+    opacity .56s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms),
+    transform .56s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms) !important;
+  will-change: opacity, transform;
 }
 
 .rf-reveal-content.rf-visible {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0) scale(1);
+  will-change: auto;
 }
 
 .rf-reveal-item {
   opacity: 0;
-  transform: translate3d(0, 10px, 0) scale(.992);
+  transform: translate3d(0, 12px, 0) scale(.994);
   transition:
-    opacity .42s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms),
-    transform .42s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms),
+    opacity .46s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms),
+    transform .46s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms),
     border-color .22s ease,
     box-shadow .22s ease !important;
-  will-change: auto !important;
+  will-change: opacity, transform;
 }
 
 .rf-reveal-item.rf-visible {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
+  will-change: auto;
 }
 
 .rf-scroll-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 200;
   height: 2px !important;
+  transform: scaleX(0);
+  transform-origin: left center;
   background: linear-gradient(90deg, #2f5bff, #6a53ff 58%, #18a8d4) !important;
   box-shadow: none !important;
+  pointer-events: none;
 }
 
-/* Efficient custom cursor: no continuous animation loop. */
+/* Efficient custom cursor: landing page only, no continuous animation loop. */
 .rf-cursor-halo,
 .rf-cursor-dot {
   display: block !important;
@@ -206,14 +240,18 @@
 }
 
 @media (max-width: 767px) {
+  html {
+    scroll-padding-top: 72px;
+  }
+
   .rf-reveal-content {
-    transform: translate3d(0, 7px, 0);
-    transition-duration: .3s !important;
+    transform: translate3d(0, 8px, 0);
+    transition-duration: .34s !important;
   }
 
   .rf-reveal-item {
-    transform: translate3d(0, 5px, 0);
-    transition-duration: .28s !important;
+    transform: translate3d(0, 6px, 0);
+    transition-duration: .3s !important;
   }
 
   .rf-landing-active .hero-glow::after {
@@ -230,6 +268,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .rf-cursor-halo,
   .rf-cursor-dot,
   .rf-scroll-progress {

@@ -1,7 +1,19 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Brand } from "@/components/app-shell";
 
 const API_DOCS = "https://recoverflow-api-ul43.onrender.com/docs";
+
+// Illustrative photography is sourced from Pexels under the Pexels license.
+// The people pictured are not presented as RecoverFlow customers or endorsers.
+const STORY_IMAGES = {
+  operator:
+    "https://images.pexels.com/photos/20552542/pexels-photo-20552542/free-photo-of-elegant-woman-working-on-laptop.jpeg?auto=compress&cs=tinysrgb&w=1400",
+  fulfillment:
+    "https://images.pexels.com/photos/7857532/pexels-photo-7857532.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  team:
+    "https://images.pexels.com/photos/4307856/pexels-photo-4307856.jpeg?auto=compress&cs=tinysrgb&w=1200",
+};
 
 function Arrow({ className = "h-4 w-4" }: { className?: string }) {
   return <svg viewBox="0 0 20 20" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10h12"/><path d="m11.5 5.5 4.5 4.5-4.5 4.5"/></svg>;
@@ -75,6 +87,79 @@ function WorkflowCard({ num, title, body }: { num: string; title: string; body: 
   return <div className="group rounded-[17px] border border-[#e4e9f2] bg-white p-5 shadow-[0_4px_16px_rgba(22,34,70,.025)] transition duration-300 hover:-translate-y-1 hover:border-[#d4ddef] hover:shadow-[0_16px_36px_rgba(22,34,70,.07)] sm:p-6"><div className="flex items-center justify-between"><span className="text-[9px] font-extrabold text-[#2f5bff]">{num}</span><span className="h-6 w-6 rounded-full border border-[#e4e9f2] transition group-hover:border-[#cfd9ef] group-hover:bg-[#f7f9ff]"/></div><h3 className="mt-5 text-[15px] font-[740] tracking-[-0.025em] text-[#16213f]">{title}</h3><p className="mt-3 text-[11px] leading-5 text-[#788196]">{body}</p></div>;
 }
 
+function StoryPhoto({
+  src,
+  alt,
+  label,
+  className,
+  imageClassName = "",
+  sizes,
+}: {
+  src: string;
+  alt: string;
+  label: string;
+  className: string;
+  imageClassName?: string;
+  sizes: string;
+}) {
+  return (
+    <figure className={`group relative isolate overflow-hidden rounded-[18px] bg-[#e9edf5] shadow-[0_16px_44px_rgba(19,31,62,.10)] ${className}`}>
+      <Image src={src} alt={alt} fill sizes={sizes} className={`object-cover transition-transform duration-700 ease-out group-hover:scale-[1.035] ${imageClassName}`} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0d1730]/75 via-[#0d1730]/20 to-transparent" />
+      <figcaption className="absolute bottom-3 left-3 rounded-full border border-white/15 bg-[#111a35]/68 px-2.5 py-1.5 text-[7px] font-extrabold uppercase tracking-[.11em] text-white shadow-sm backdrop-blur-md sm:bottom-4 sm:left-4 sm:text-[8px]">{label}</figcaption>
+    </figure>
+  );
+}
+
+function MerchantStories() {
+  return (
+    <section className="relative overflow-hidden border-y border-[#edf0f5] bg-white">
+      <div className="absolute inset-y-0 right-0 hidden w-[42%] bg-[radial-gradient(circle_at_center,rgba(47,91,255,.07),transparent_68%)] lg:block" />
+      <div className="relative mx-auto grid max-w-[1120px] gap-10 px-5 py-20 md:px-7 md:py-24 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:gap-14">
+        <div>
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#2f5bff]">Built around real commerce</p>
+          <h2 className="mt-3 text-[34px] font-[770] leading-[1.08] tracking-[-0.045em] text-[#121d39] md:text-[44px]">Payments are technical. Revenue recovery is operational.</h2>
+          <p className="mt-5 max-w-[470px] text-[13px] leading-6 text-[#707a91]">Behind every failed transaction is a customer, an order, and a team deciding what to do next. RecoverFlow is built for that operating reality — recover what is recoverable, wait when the payment state is uncertain, and stop when another collection attempt would be unsafe.</p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {["Online commerce", "Payment operations", "Customer experience"].map((item) => <span key={item} className="rounded-full border border-[#e1e6ef] bg-[#fafbfe] px-3 py-1.5 text-[8px] font-bold text-[#69758d]">{item}</span>)}
+          </div>
+          <Link href="/cases" className="mt-7 inline-flex items-center gap-2 text-[10px] font-extrabold text-[#2f5bff] hover:underline">See the recovery workspace <Arrow className="h-3.5 w-3.5"/></Link>
+        </div>
+
+        <div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-12 sm:grid-rows-2 sm:gap-3">
+            <StoryPhoto
+              src={STORY_IMAGES.operator}
+              alt="Illustrative business professional working on a laptop in an office"
+              label="Merchant operations"
+              className="col-span-2 aspect-[16/10] sm:col-span-7 sm:row-span-2 sm:aspect-auto sm:min-h-[470px]"
+              imageClassName="object-[center_28%]"
+              sizes="(max-width: 639px) 100vw, 58vw"
+            />
+            <StoryPhoto
+              src={STORY_IMAGES.fulfillment}
+              alt="Illustrative small-business order fulfillment with a laptop and parcels"
+              label="Order fulfillment"
+              className="col-span-1 aspect-[4/3] sm:col-span-5"
+              imageClassName="object-center"
+              sizes="(max-width: 639px) 50vw, 36vw"
+            />
+            <StoryPhoto
+              src={STORY_IMAGES.team}
+              alt="Illustrative professional working on a laptop"
+              label="Digital-first teams"
+              className="col-span-1 aspect-[4/3] sm:col-span-5"
+              imageClassName="object-[center_38%]"
+              sizes="(max-width: 639px) 50vw, 36vw"
+            />
+          </div>
+          <p className="mt-2.5 text-right text-[7px] font-medium text-[#a0a7b4]">Illustrative business photography</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-white text-[#111a35]">
@@ -121,6 +206,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <MerchantStories />
 
       <section id="safety" className="border-y border-[#edf0f5] bg-white">
         <div className="mx-auto max-w-[1120px] px-5 py-20 md:px-7 md:py-24">

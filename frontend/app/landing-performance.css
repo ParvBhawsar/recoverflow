@@ -1,0 +1,90 @@
+/* Lightweight landing overrides.
+   Keep the visual language, but avoid continuous full-page paint/transform work. */
+
+.rf-landing-active .soft-orb {
+  animation: none !important;
+  filter: blur(10px);
+}
+
+.rf-landing-active .hero-glow::after {
+  animation: none !important;
+  opacity: .32;
+}
+
+.rf-landing-active .hero-glow .surface-grid {
+  animation: none !important;
+}
+
+.rf-landing-active .hero-glow > .relative > div:first-child {
+  animation: none !important;
+}
+
+.rf-landing-active .hero-glow h1 span {
+  animation: none !important;
+  background-position: 52% 50% !important;
+  filter: none !important;
+}
+
+.rf-dark-band::before {
+  animation: none !important;
+  transform: none !important;
+  opacity: .3;
+}
+
+.rf-cursor-halo,
+.rf-cursor-dot {
+  display: none !important;
+}
+
+.rf-magnetic,
+.rf-preview-tilt {
+  transform: none !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+
+.rf-reveal-content {
+  opacity: 0;
+  transform: translateY(10px);
+  filter: none !important;
+  transition: opacity .42s cubic-bezier(.2,.72,.2,1), transform .42s cubic-bezier(.2,.72,.2,1) !important;
+  will-change: auto !important;
+}
+
+.rf-reveal-content.rf-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rf-reveal-item {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .38s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms), transform .38s cubic-bezier(.2,.72,.2,1) var(--rf-delay, 0ms), border-color .25s ease, box-shadow .25s ease !important;
+  will-change: auto !important;
+}
+
+.rf-reveal-item.rf-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rf-scroll-progress {
+  box-shadow: none !important;
+}
+
+@media (max-width: 767px) {
+  .rf-reveal-content,
+  .rf-reveal-item {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .rf-landing-active .hero-glow::after {
+    display: none;
+  }
+
+  .rf-landing-active .soft-orb {
+    opacity: .52;
+  }
+}

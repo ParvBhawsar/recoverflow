@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Compile backend
-        run: python -m compileall -q app
+      - name: Compile backend and diagnostic helpers
+        run: python -m compileall -q app scripts
 
       - name: Run unit tests
         run: python -m pytest

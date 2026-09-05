@@ -154,15 +154,17 @@ Copy `backend/.env.example` to `backend/.env`, add your own Supabase/Razorpay Te
 .\scripts\dev.ps1
 ```
 
+Local database handling is resilient by design: RecoverFlow explicitly disables unnecessary GSS negotiation for Supabase, tries the shared session pooler on port `5432`, then the transaction pooler on `6543`. If neither local PostgreSQL route is usable from the current machine/network, `dev.ps1` automatically starts the local frontend against the healthy deployed Render Test Mode API instead of blocking development. In that fallback mode, test actions affect the shared deployed Test Mode database.
+
 Local endpoints:
 
 - Product: http://localhost:3000
 - Merchant console: http://localhost:3000/dashboard
 - Recovery cases: http://localhost:3000/cases
 - Recovery insights: http://localhost:3000/analytics
-- API: http://127.0.0.1:8000
-- Swagger: http://127.0.0.1:8000/docs
-- Readiness: http://127.0.0.1:8000/health/ready
+- API (when the full local backend is available): http://127.0.0.1:8000
+- Swagger (when the full local backend is available): http://127.0.0.1:8000/docs
+- Readiness (when the full local backend is available): http://127.0.0.1:8000/health/ready
 
 ## Production smoke test
 

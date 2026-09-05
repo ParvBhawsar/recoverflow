@@ -26,7 +26,13 @@ From the repository root:
 .\scripts\check.ps1
 ```
 
-The check script validates Python compilation/imports, backend unit tests, Supabase connectivity, ESLint, and the Next.js production build. Run each step only after the preceding step succeeds.
+The check script validates Python compilation/imports, backend unit tests, frontend lint/build, and database reachability. Database reachability is intentionally resilient:
+
+1. Supabase shared session pooler on port `5432`
+2. Supabase shared transaction pooler on port `6543`
+3. if neither local PostgreSQL route works, verify the deployed Render Test Mode backend and continue code/build validation
+
+Supabase connections use `sslmode=require` and explicitly disable unnecessary GSS encryption negotiation with `gssencmode=disable`. This avoids a known Supavisor/libpq negotiation compatibility issue on some clients.
 
 Start the local application with:
 
@@ -34,7 +40,7 @@ Start the local application with:
 .\scripts\dev.ps1
 ```
 
-The dev script starts separate backend and frontend terminals. Keep them open while using localhost. It currently stops listeners on ports 3000 and 8000 first; make sure these ports are not being used by unrelated applications.
+`dev.ps1` uses the same connection resolution strategy. If local PostgreSQL is available it starts the full local FastAPI + Next.js stack. If neither pooler port can establish a local database session, it starts the local Next.js frontend against the deployed Render Test Mode API instead. This fallback does not change `backend/.env`, Render settings, or Supabase credentials. Test actions in fallback mode affect the shared deployed Test Mode database.
 
 Useful local URLs:
 
@@ -44,9 +50,9 @@ Useful local URLs:
 - Recovery insights: `http://localhost:3000/analytics`
 - Merchant safeguards: `http://localhost:3000/settings/policy`
 - Test sandbox: `http://localhost:3000/simulator`
-- API docs: `http://127.0.0.1:8000/docs`
-- Liveness: `http://127.0.0.1:8000/health`
-- Readiness + database: `http://127.0.0.1:8000/health/ready`
+- API docs when full local backend is active: `http://127.0.0.1:8000/docs`
+- Liveness when full local backend is active: `http://127.0.0.1:8000/health`
+- Readiness + database when full local backend is active: `http://127.0.0.1:8000/health/ready`
 
 ## 2. Backend on Render
 
@@ -69,6 +75,7 @@ The Blueprint supplies:
 - `DB_PORT=5432`
 - `DB_NAME=postgres`
 - `DB_SSLMODE=require`
+- `DB_GSSENCMODE=disable`
 - `GEMINI_MODEL=gemini-3.5-flash-lite`
 - `OPENAI_FALLBACK_ENABLED=false`
 - readiness health check `/health/ready`
@@ -89,7 +96,7 @@ Import the same GitHub repository into Vercel.
 
 Use:
 
-- **Framework:** Next.js, not the multi-service preset
+- **Framework:** Next.js
 - **Root Directory:** `frontend`
 - **Production branch:** `main`
 - **Build Command:** framework default
@@ -126,14 +133,9 @@ For the deployed backend, set Render:
 FRONTEND_ORIGINS=https://recoverflow-kohl.vercel.app
 ```
 
-Use an origin without a trailing slash. Multiple origins can be comma-separated. For local development, use the local configuration rather than replacing it with production settings:
+Use an origin without a trailing slash. Multiple origins can be comma-separated. Localhost remains enabled by application defaults for development.
 
-```text
-APP_ENV=development
-FRONTEND_ORIGINS=http://localhost:3000
-```
-
-Restart/redeploy the Render service after changing its environment. Local secret files, Render environment variables and Vercel environment variables are separate; Git does not synchronize secret values between them.
+Local secret files, Render environment variables and Vercel environment variables are separate; Git does not synchronize secret values between them.
 
 ## 5. Production smoke test
 
@@ -143,17 +145,7 @@ Restart/redeploy the Render service after changing its environment. Local secret
   -FrontendUrl "https://recoverflow-kohl.vercel.app"
 ```
 
-The smoke test checks:
-
-- backend root/version
-- backend + database readiness
-- Supabase connection
-- merchant safety policy + mandatory duplicate protection
-- `rf-synth-v1` evaluation dataset
-- merchant and technical frontend routes
-- production CORS from Vercel to Render
-
-HTTP success is not a visual or interactive browser test. Also verify navigation, case selection, loading/error states and mobile layouts in a browser.
+The smoke test checks backend readiness, Supabase, merchant safety policy, evaluation data, frontend routes, and production CORS.
 
 ## 6. Razorpay Test Mode webhook
 
@@ -162,8 +154,6 @@ Configure Razorpay Test Mode to send signed events to:
 ```text
 https://recoverflow-api-ul43.onrender.com/webhooks/razorpay
 ```
-
-Use the same secret configured as `RAZORPAY_WEBHOOK_SECRET` on Render. This is separate from the Razorpay API key secret.
 
 Relevant events:
 
@@ -195,7 +185,7 @@ Reviewed code and documentation -> GitHub main
                                   |-> git pull -> local VS Code checkout
 ```
 
-Vercel's Git integration builds production deployments from the production branch. Render auto-deployment must be enabled on the linked branch; its settings can deploy on commit or after CI checks pass. Builds complete independently, so this is not an instantaneous or atomic multi-service release.
+Vercel and Render deployments finish independently, so release alignment is verified rather than assumed.
 
 For each release:
 
@@ -206,7 +196,7 @@ For each release:
 5. Run the production smoke test and appropriate interactive Test Mode checks.
 6. Pull into the local checkout, install changed dependencies, and restart local development servers.
 
-A README edit is an ordinary source change; documentation is not rewritten automatically by Git or hosting platforms. Supabase records/schema, Razorpay dashboard configuration and hosting secrets also do not update merely because code was pulled or deployed. Handle required schema/configuration changes explicitly without resetting existing data.
+A README edit is an ordinary source change; documentation is not rewritten automatically by Git or hosting platforms. Supabase records/schema, Razorpay dashboard configuration and hosting secrets also do not update merely because code was pulled or deployed.
 
 To compare local source revisions after a successful pull:
 
@@ -215,14 +205,8 @@ git rev-parse HEAD
 git rev-parse origin/main
 ```
 
-The hashes should match for a checkout aligned to the fetched `main`. Uncommitted changes can still exist; also check `git status --short`.
+The hashes should match for a checkout aligned to the fetched `main`.
 
 ## Free-tier note
 
-Render free web services can spin down after inactivity, so the first request after an idle period can be slow. The production smoke script includes cold-start retries.
-
-## Platform references
-
-- Git pull: https://git-scm.com/docs/git-pull
-- Vercel Git deployments: https://vercel.com/docs/git
-- Render deploy behavior: https://render.com/docs/deploys
+Render free web services can spin down after inactivity, so the first request after an idle period can be slow. The production smoke script and local fallback use retry windows for this case.

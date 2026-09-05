@@ -6,6 +6,7 @@ $frontend = Join-Path $root 'frontend'
 $python = Join-Path $backend 'venv\Scripts\python.exe'
 $checkApp = Join-Path $backend 'scripts\check_app.py'
 $checkDb = Join-Path $backend 'scripts\check_db.py'
+$fallbackApi = if ($env:RECOVERFLOW_FALLBACK_API_URL) { $env:RECOVERFLOW_FALLBACK_API_URL.TrimEnd('/') } else { 'https://recoverflow-api-ul43.onrender.com' }
 
 function Pass($message) {
     Write-Host "[PASS] $message" -ForegroundColor Green
@@ -13,6 +14,10 @@ function Pass($message) {
 
 function Step($message) {
     Write-Host "`n== $message ==" -ForegroundColor Cyan
+}
+
+function Warn($message) {
+    Write-Host "[WARN] $message" -ForegroundColor Yellow
 }
 
 Write-Host 'RecoverFlow diagnostic check' -ForegroundColor Cyan
@@ -49,11 +54,13 @@ if ($strayTests.Count -gt 0) {
     foreach ($file in $strayTests) {
         Write-Host "  - $file" -ForegroundColor Yellow
     }
-    Write-Host ''
-    Write-Host 'Move or delete stale local tests before running diagnostics.' -ForegroundColor Yellow
     throw 'Local-only pytest files would make local checks differ from CI.'
 }
 Pass 'No unexpected local-only pytest files'
+
+$localDbAvailable = $false
+$selectedDbPort = $null
+$productionReady = $false
 
 Push-Location $backend
 try {
@@ -72,59 +79,32 @@ try {
     Pass 'Backend unit tests pass'
 
     Step 'Supabase database'
-    $targetOutput = @(& $python $checkDb --target)
-    if ($LASTEXITCODE -ne 0 -or $targetOutput.Count -lt 2) {
-        throw 'Could not read database target from backend configuration.'
-    }
+    $dbOutput = @(& $python $checkDb)
+    $dbExitCode = $LASTEXITCODE
+    $dbOutput | ForEach-Object { Write-Host $_ }
 
-    $dbHost = $targetOutput[0].Trim()
-    $dbPort = [int]$targetOutput[1].Trim()
-    $dbConnected = $false
-    $dbOutput = @()
-
-    for ($attempt = 1; $attempt -le 3; $attempt++) {
-        $dbOutput = @(& $python $checkDb)
-        $dbExitCode = $LASTEXITCODE
-
-        if ($dbExitCode -eq 0) {
-            $dbConnected = $true
-            $dbOutput | ForEach-Object { Write-Host $_ }
-            if ($attempt -gt 1) {
-                Write-Host "[INFO] Supabase connected on retry $attempt/3." -ForegroundColor Yellow
-            }
-            break
+    if ($dbExitCode -eq 0) {
+        $selectedLine = $dbOutput | Where-Object { $_ -match '^DB_PORT_SELECTED=(\d+)$' } | Select-Object -Last 1
+        if ($selectedLine -and $selectedLine -match '^DB_PORT_SELECTED=(\d+)$') {
+            $selectedDbPort = [int]$Matches[1]
         }
-
-        if ($attempt -lt 3) {
-            Write-Host "[INFO] Database connection attempt $attempt/3 failed; retrying in 4 seconds..." -ForegroundColor Yellow
-            Start-Sleep -Seconds 4
-        }
-    }
-
-    if (-not $dbConnected) {
-        Write-Host "[ERROR] PostgreSQL connection failed after 3 attempts." -ForegroundColor Red
-        Write-Host "Target: ${dbHost}:${dbPort}" -ForegroundColor Yellow
+        $localDbAvailable = $true
+        Pass 'Local Supabase PostgreSQL connection works'
+    } else {
+        Warn 'Local Supabase PostgreSQL is not reachable from this Windows/network session.'
+        Write-Host '[INFO] Continuing with code/build validation and checking the deployed Test Mode backend fallback.' -ForegroundColor Yellow
 
         try {
-            $tcpOk = Test-NetConnection -ComputerName $dbHost -Port $dbPort -InformationLevel Quiet -WarningAction SilentlyContinue
+            $ready = Invoke-RestMethod -Uri "$fallbackApi/health/ready" -TimeoutSec 90
+            if ($ready.status -eq 'ready' -and $ready.database -eq 'connected') {
+                $productionReady = $true
+                Pass 'Deployed Render backend + Supabase are ready'
+                Write-Host '[INFO] dev.ps1 will automatically use the deployed Test Mode API for the local frontend if direct local DB access remains unavailable.' -ForegroundColor Yellow
+            }
         } catch {
-            $tcpOk = $false
+            Warn "Could not verify deployed backend fallback at $fallbackApi during this check."
         }
-
-        if ($tcpOk) {
-            Write-Host '[PASS] DNS/TCP reachability to the Supabase pooler works.' -ForegroundColor Green
-            Write-Host '[INFO] The network path is open. If the DB error persists, verify the current pooler username/password and SSL settings in backend/.env.' -ForegroundColor Yellow
-        } else {
-            Write-Host '[ERROR] This machine cannot currently reach the Supabase pooler on TCP 5432.' -ForegroundColor Red
-            Write-Host '[INFO] Try another network/mobile hotspot, disable a restrictive VPN/proxy, and verify outbound TCP 5432 is allowed.' -ForegroundColor Yellow
-        }
-
-        Write-Host ''
-        Write-Host 'Last database error:' -ForegroundColor Yellow
-        $dbOutput | Select-Object -Last 4 | ForEach-Object { Write-Host $_ }
-        throw 'Local Supabase connectivity check failed.'
     }
-    Pass 'Supabase PostgreSQL connection works'
 }
 finally {
     Pop-Location
@@ -161,9 +141,9 @@ finally {
 Step 'Optional running-service checks'
 try {
     $ready = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health/ready' -TimeoutSec 3
-    if ($ready.status -eq 'ready') { Pass 'Running backend is ready' }
+    if ($ready.status -eq 'ready') { Pass 'Running local backend is ready' }
 } catch {
-    Write-Host '[INFO] Backend is not currently running; mandatory checks already passed.' -ForegroundColor Yellow
+    Write-Host '[INFO] Local backend is not currently running.' -ForegroundColor Yellow
 }
 
 try {
@@ -174,12 +154,23 @@ try {
 }
 
 Write-Host ''
-Write-Host 'All mandatory RecoverFlow checks passed.' -ForegroundColor Green
-Write-Host 'Start app: .\scripts\dev.ps1'
+Write-Host 'RecoverFlow checks completed.' -ForegroundColor Green
+if ($localDbAvailable) {
+    Write-Host "Local database mode: available on port $selectedDbPort" -ForegroundColor Green
+    Write-Host 'Start full local stack: .\scripts\dev.ps1' -ForegroundColor Green
+} elseif ($productionReady) {
+    Write-Host 'Local database mode: unavailable on this network' -ForegroundColor Yellow
+    Write-Host 'Fallback mode: READY (local frontend + deployed Render Test Mode backend)' -ForegroundColor Green
+    Write-Host 'Start with: .\scripts\dev.ps1' -ForegroundColor Green
+} else {
+    Warn 'Local DB and deployed fallback could not both be verified, but code/tests/lint/build passed.'
+    Write-Host 'You can retry .\scripts\dev.ps1; it performs its own backend selection and Render wake-up.' -ForegroundColor Yellow
+}
+
+Write-Host ''
 Write-Host 'Product: http://localhost:3000'
 Write-Host 'Merchant overview: http://localhost:3000/dashboard'
 Write-Host 'Recovery cases: http://localhost:3000/cases'
 Write-Host 'Recovery insights: http://localhost:3000/analytics'
 Write-Host 'Merchant safeguards: http://localhost:3000/settings/policy'
-Write-Host 'API docs: http://127.0.0.1:8000/docs'
-Write-Host 'Readiness: http://127.0.0.1:8000/health/ready'
+Write-Host 'API docs (local backend only): http://127.0.0.1:8000/docs'

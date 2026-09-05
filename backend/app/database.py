@@ -13,6 +13,9 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_SSLMODE = os.getenv("DB_SSLMODE", "require")
+# Supabase/Supavisor does not require GSS encryption. Explicitly disabling
+# negotiation avoids libpq/GSS compatibility issues on some Windows clients.
+DB_GSSENCMODE = os.getenv("DB_GSSENCMODE", "disable").strip() or "disable"
 
 if not all([DB_HOST, DB_USER, DB_PASSWORD]):
     raise RuntimeError(
@@ -26,7 +29,10 @@ DATABASE_URL = URL.create(
     host=DB_HOST,
     port=DB_PORT,
     database=DB_NAME,
-    query={"sslmode": DB_SSLMODE},
+    query={
+        "sslmode": DB_SSLMODE,
+        "gssencmode": DB_GSSENCMODE,
+    },
 )
 
 engine = create_engine(

@@ -18,7 +18,7 @@ Write-Host "Repo: $root"
 
 Step 'Prerequisites'
 if (-not (Test-Path $python)) {
-    throw 'Python venv missing. Run .\scripts\setup.ps1 first.'
+    throw '.Python venv missing. Run .\scripts\setup.ps1 first.'
 }
 Pass 'Python venv found'
 
@@ -66,8 +66,52 @@ if ($LASTEXITCODE -ne 0) { throw 'Backend pytest suite failed.' }
 Pass 'Backend unit tests pass'
 
 Step 'Supabase database'
-& $python -c "from sqlalchemy import text; from app.database import engine; c=engine.connect(); print('SELECT 1 =', c.execute(text('SELECT 1')).scalar()); c.close()"
-if ($LASTEXITCODE -ne 0) { throw 'Database connectivity check failed.' }
+$dbHost = (& $python -c "from app.database import DB_HOST; print(DB_HOST)").Trim()
+$dbPort = [int]((& $python -c "from app.database import DB_PORT; print(DB_PORT)").Trim())
+$dbConnected = $false
+$dbOutput = @()
+
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $dbOutput = @(& $python -c "from sqlalchemy import text; from app.database import engine; c=engine.connect(); print('SELECT 1 =', c.execute(text('SELECT 1')).scalar()); c.close()" 2>&1)
+    if ($LASTEXITCODE -eq 0) {
+        $dbConnected = $true
+        $dbOutput | ForEach-Object { Write-Host $_ }
+        if ($attempt -gt 1) {
+            Write-Host "[INFO] Supabase connected on retry $attempt/3." -ForegroundColor Yellow
+        }
+        break
+    }
+
+    if ($attempt -lt 3) {
+        Write-Host "[INFO] Database connection attempt $attempt/3 failed; retrying in 4 seconds..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 4
+    }
+}
+
+if (-not $dbConnected) {
+    Write-Host "[ERROR] PostgreSQL connection failed after 3 attempts." -ForegroundColor Red
+    Write-Host "Target: ${dbHost}:${dbPort}" -ForegroundColor Yellow
+
+    try {
+        $tcpOk = Test-NetConnection -ComputerName $dbHost -Port $dbPort -InformationLevel Quiet -WarningAction SilentlyContinue
+    } catch {
+        $tcpOk = $false
+    }
+
+    if ($tcpOk) {
+        Write-Host '[PASS] DNS/TCP reachability to the Supabase pooler works.' -ForegroundColor Green
+        Write-Host '[INFO] The failure is at the PostgreSQL/SSL session layer. Retry shortly and verify the current Supabase pooler credentials in backend/.env if it persists.' -ForegroundColor Yellow
+    } else {
+        Write-Host '[ERROR] This machine cannot currently reach the Supabase pooler on TCP 5432.' -ForegroundColor Red
+        Write-Host '[INFO] Try another network/mobile hotspot, disable a restrictive VPN/proxy, and verify firewall/ISP access to outbound TCP 5432.' -ForegroundColor Yellow
+    }
+
+    Write-Host ''
+    Write-Host 'Last database error:' -ForegroundColor Yellow
+    $dbOutput | Select-Object -Last 8 | ForEach-Object { Write-Host $_ }
+    Pop-Location
+    throw 'Local Supabase connectivity check failed. Production may still be healthy; this check validates the current machine-to-database path.'
+}
 Pass 'Supabase PostgreSQL connection works'
 Pop-Location
 

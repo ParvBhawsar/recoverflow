@@ -7,42 +7,51 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
 
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = int(os.getenv("DB_PORT", "5432"))
-DB_NAME = os.getenv("DB_NAME", "postgres")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_SSLMODE = os.getenv("DB_SSLMODE", "require")
-# Supabase/Supavisor does not require GSS encryption. Explicitly disabling
-# negotiation avoids libpq/GSS compatibility issues on some Windows clients.
-DB_GSSENCMODE = os.getenv("DB_GSSENCMODE", "disable").strip() or "disable"
+USE_SQLITE_DEMO = os.getenv("USE_SQLITE_DEMO", "").strip().lower() in {"1", "true", "yes", "on"}
 
-if not all([DB_HOST, DB_USER, DB_PASSWORD]):
-    raise RuntimeError(
-        "Database configuration is incomplete. Set DB_HOST, DB_USER and DB_PASSWORD."
+if USE_SQLITE_DEMO:
+    DATABASE_URL = "sqlite:////tmp/recoverflow-demo.db"
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = int(os.getenv("DB_PORT", "5432"))
+    DB_NAME = os.getenv("DB_NAME", "postgres")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_SSLMODE = os.getenv("DB_SSLMODE", "require")
+    # Supabase/Supavisor does not require GSS encryption. Explicitly disabling
+    # negotiation avoids libpq/GSS compatibility issues on some Windows clients.
+    DB_GSSENCMODE = os.getenv("DB_GSSENCMODE", "disable").strip() or "disable"
+
+    if not all([DB_HOST, DB_USER, DB_PASSWORD]):
+        raise RuntimeError(
+            "Database configuration is incomplete. Set DB_HOST, DB_USER and DB_PASSWORD."
+        )
+
+    DATABASE_URL = URL.create(
+        drivername="postgresql+psycopg2",
+        username=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        query={
+            "sslmode": DB_SSLMODE,
+            "gssencmode": DB_GSSENCMODE,
+        },
     )
 
-DATABASE_URL = URL.create(
-    drivername="postgresql+psycopg2",
-    username=DB_USER,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME,
-    query={
-        "sslmode": DB_SSLMODE,
-        "gssencmode": DB_GSSENCMODE,
-    },
-)
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    pool_size=3,
-    max_overflow=2,
-    connect_args={"connect_timeout": 10},
-)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=3,
+        max_overflow=2,
+        connect_args={"connect_timeout": 10},
+    )
 
 SessionLocal = sessionmaker(
     autocommit=False,

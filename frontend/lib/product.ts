@@ -1,4 +1,5 @@
-// Production API base is provided through NEXT_PUBLIC_API_URL.\nexport const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// Production API base is provided through NEXT_PUBLIC_API_URL.
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export type RecoverySummary = {
   revenue_at_risk: number;
